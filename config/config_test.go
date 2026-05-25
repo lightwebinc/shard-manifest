@@ -1,0 +1,156 @@
+package config
+
+import (
+	"testing"
+	"time"
+)
+
+func TestParseJoinedGroups(t *testing.T) {
+	g, all, err := parseJoinedGroups("0x0,0x1,3,5", 4)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if all {
+		t.Errorf("all should be false")
+	}
+	want := []uint16{0, 1, 3, 5}
+	if len(g) != len(want) {
+		t.Fatalf("len = %d, want %d", len(g), len(want))
+	}
+	for i, v := range want {
+		if g[i] != v {
+			t.Errorf("g[%d] = %d, want %d", i, g[i], v)
+		}
+	}
+}
+
+func TestParseJoinedGroups_All(t *testing.T) {
+	_, all, err := parseJoinedGroups("all", 4)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if !all {
+		t.Errorf("all should be true")
+	}
+}
+
+func TestParseJoinedGroups_OutOfRange(t *testing.T) {
+	_, _, err := parseJoinedGroups("16", 4)
+	if err == nil {
+		t.Errorf("expected out-of-range error")
+	}
+}
+
+func TestParseJoinedGroups_Duplicate(t *testing.T) {
+	_, _, err := parseJoinedGroups("1,1", 4)
+	if err == nil {
+		t.Errorf("expected duplicate error")
+	}
+}
+
+func TestParseGenerationID(t *testing.T) {
+	g, err := parseGenerationID("00112233-4455-6677-8899-AABBCCDDEEFF")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	want := []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
+	for i, b := range want {
+		if g[i] != b {
+			t.Errorf("g[%d] = 0x%02X, want 0x%02X", i, g[i], b)
+		}
+	}
+}
+
+func TestParseGenerationID_Empty(t *testing.T) {
+	g, err := parseGenerationID("")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	for i, b := range g {
+		if b != 0 {
+			t.Errorf("g[%d] = 0x%02X, want 0", i, b)
+		}
+	}
+}
+
+func TestParseGenerationID_BadLength(t *testing.T) {
+	if _, err := parseGenerationID("deadbeef"); err == nil {
+		t.Errorf("expected length error")
+	}
+}
+
+func TestParseUint16(t *testing.T) {
+	cases := []struct {
+		in   string
+		want uint16
+	}{
+		{"0", 0},
+		{"123", 123},
+		{"0x10", 16},
+		{"0XFF", 255},
+	}
+	for _, c := range cases {
+		v, err := parseUint16(c.in)
+		if err != nil {
+			t.Errorf("%q: err %v", c.in, err)
+			continue
+		}
+		if v != c.want {
+			t.Errorf("%q: got %d, want %d", c.in, v, c.want)
+		}
+	}
+}
+
+func TestEncodingFormForGroups(t *testing.T) {
+	c := &Config{Encoding: EncodingAuto}
+	if got := c.EncodingFormForGroups(10); got != EncodingList {
+		t.Errorf("auto/10: got %v, want list", got)
+	}
+	if got := c.EncodingFormForGroups(thresholdListEntries + 1); got != EncodingBitmap {
+		t.Errorf("auto/many: got %v, want bitmap", got)
+	}
+	c.Encoding = EncodingList
+	if got := c.EncodingFormForGroups(10000); got != EncodingList {
+		t.Errorf("forced list: got %v", got)
+	}
+	c.Encoding = EncodingBitmap
+	if got := c.EncodingFormForGroups(1); got != EncodingBitmap {
+		t.Errorf("forced bitmap: got %v", got)
+	}
+}
+
+func TestScopePrefixes(t *testing.T) {
+	c := &Config{ManifestScope: "site,global"}
+	got, err := c.ScopePrefixes()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 2 || got[0] != 0xFF05 || got[1] != 0xFF0E {
+		t.Errorf("got %v, want [FF05 FF0E]", got)
+	}
+}
+
+func TestScopePrefixes_Bad(t *testing.T) {
+	c := &Config{ManifestScope: "bogus"}
+	if _, err := c.ScopePrefixes(); err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func TestEnvHelpers(t *testing.T) {
+	t.Setenv("X_INT", "42")
+	t.Setenv("X_BOOL", "true")
+	t.Setenv("X_DUR", "150ms")
+	if envInt("X_INT", 0) != 42 {
+		t.Error("envInt")
+	}
+	if !envBool("X_BOOL", false) {
+		t.Error("envBool")
+	}
+	if envDuration("X_DUR", time.Second) != 150*time.Millisecond {
+		t.Error("envDuration")
+	}
+	if envOrDefault("X_MISSING", "def") != "def" {
+		t.Error("envOrDefault")
+	}
+}

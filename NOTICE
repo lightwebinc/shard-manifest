@@ -1,0 +1,15 @@
+bitcoin-shard-manifest
+Copyright 2026 Lightweb Inc. (https://lightweb.net)
+
+=========================================================================
+
+This software is a small standalone daemon that periodically emits BRC-137
+ShardManifest datagrams to the IPv6 multicast beacon group, advertising the
+local participant's shard_bits configuration and the set of shard groups it
+has joined. It is intended for use alongside `bitcoin-shard-proxy`,
+`bitcoin-shard-listener`, and `bitcoin-retry-endpoint` to give operators
+on-network visibility into the sharding configuration of every participant
+and a hook for future automated coordination.
+
+This product includes software developed at Lightweb Inc. and licensed
+under the Apache License, Version 2.0 (see LICENSE).
