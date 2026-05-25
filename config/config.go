@@ -85,8 +85,8 @@ type Config struct {
 	Debug bool
 }
 
-// scopeBytes returns the active scope prefix bytes (e.g. 0xFF05) parsed from
-// ManifestScope. Order is preserved.
+// ScopePrefixes returns the active scope prefix bytes (e.g. 0xFF05) parsed
+// from ManifestScope. Order is preserved.
 func (c *Config) ScopePrefixes() ([]uint16, error) {
 	parts := strings.Split(c.ManifestScope, ",")
 	out := make([]uint16, 0, len(parts))

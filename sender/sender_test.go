@@ -54,10 +54,10 @@ func TestBuildManifest_List(t *testing.T) {
 
 func TestBuildManifest_Bitmap(t *testing.T) {
 	c := &config.Config{
-		ShardBits:    8,
-		JoinAll:      true,
-		Encoding:     config.EncodingAuto,
-		RoleHint:     frame.RoleHintListener,
+		ShardBits: 8,
+		JoinAll:   true,
+		Encoding:  config.EncodingAuto,
+		RoleHint:  frame.RoleHintListener,
 	}
 	s := newSender(c)
 	m, err := s.buildManifest(false)
