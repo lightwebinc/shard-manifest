@@ -14,7 +14,7 @@ profile.cov
 
 # Build outputs
 /build/
-/bitcoin-shard-manifest
+/shard-manifest
 /manifest-emit
 
 # Go workspace files
