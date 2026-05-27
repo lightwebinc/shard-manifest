@@ -1,7 +1,7 @@
-# bitcoin-shard-manifest
+# shard-manifest
 
-`bitcoin-shard-manifest` is a tiny standalone daemon that periodically
-multicasts [BRC-137](https://github.com/lightwebinc/bitcoin-multicast/blob/main/docs/brc-137-shard-manifest.md)
+`shard-manifest` is a tiny standalone daemon that periodically
+multicasts [BRC-137](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-137-shard-manifest.md)
 ShardManifest datagrams. Each manifest advertises the local participant's
 `shard_bits` configuration, the set of shard group indices it claims to have
 joined, identity, timestamp, TTL, and a `GenerationID`. Manifests are sent
@@ -17,7 +17,7 @@ support automated, rate-limited shard-bit shifts.
 
 ```bash
 make build
-./bitcoin-shard-manifest \
+./shard-manifest \
   -shard-bits=4 \
   -joined-groups=0,1,2,3 \
   -role-hint=proxy \
