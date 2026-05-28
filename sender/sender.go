@@ -47,7 +47,7 @@ func New(cfg *config.Config, rec *metrics.Recorder, instanceID uint32) (*Sender,
 	}
 	dests := make([]*net.UDPAddr, 0, len(scopes))
 	for _, scope := range scopes {
-		ip := shard.ControlGroupAddr(scope, cfg.MCGroupID, shard.CtrlGroupBeacon)
+		ip := shard.GroupAddr(scope, cfg.MCGroupID, shard.GroupBeacon)
 		dests = append(dests, &net.UDPAddr{IP: ip, Port: cfg.Port})
 	}
 	return &Sender{
