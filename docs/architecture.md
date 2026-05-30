@@ -75,11 +75,33 @@ long-running daemon.
 See [BRC-137](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-137-shard-manifest.md)
 for the complete specification. Key points:
 
-- 64-byte header + variable-length payload (list of 16-bit indices or bitmap).
+- 64-byte header + variable-length payload (list of 16-bit indices or bitmap),
+  optionally followed by a `SourceCount × 16`-byte SSM sources payload.
 - `MsgType = 0x40` at offset 6; consumers MUST dispatch on this byte before
   parsing because `MsgType 0x20` (BRC-126 ADVERT) shares the beacon group.
 - 4-byte `ManifestCRC` at offset 44 (CRC32c, Castagnoli) covers the entire
   datagram with the CRC field zeroed.
+
+### SSM (RFC 4607) emission
+
+When `-source-mode=ssm` is set:
+
+- `Flags.SourceModeSSM` (bit 3) is set on every emitted manifest.
+  Consumers MUST switch their data-plane group derivation to the
+  `FF3x::/32` SSM prefix (FF35 site / FF3E global, per
+  `shard.Prefix()`).
+- `Flags.SourcesValid` (bit 4) is set when `-publishers` resolved to
+  ≥1 AAAA record; the trailing payload appends `SourceCount × 16`
+  bytes (each entry a publisher source IPv6 in network byte order).
+- The sender uses `shard-common/bootstrap.Resolver` to resolve
+  `-publishers` (IPv6 literals OR DNS names) and re-resolves every
+  `-publishers-refresh`. Last-good AAAA set is retained on transient
+  failures so brief DNS outages do not collapse the payload to empty.
+- Consumers union the sources across all currently-valid manifests they
+  hold and feed the union into `(S,G)` data-plane joins.
+
+See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md)
+for the full Posture C design.
 
 ## Identity
 

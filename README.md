@@ -51,6 +51,9 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | `-port`               | `PORT`               | `9001`         | UDP destination port                             |
 | `-iface`              | `IFACE`              | (auto-pick)    | egress interface                                 |
 | `-mc-group-id`        | `MC_GROUP_ID`        | `0x000B`       | IANA group-id                                    |
+| `-source-mode`        | `SOURCE_MODE`        | `asm`          | `asm` or `ssm`. SSM sets `Flags.SourceModeSSM` on every manifest and requires `-publishers`. See [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md). |
+| `-publishers`         | `PUBLISHERS`         | `""`           | CSV of data-plane publisher IPv6 literals or DNS names. Resolved via `bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union (BRC-137 bit 4). |
+| `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`          | DNS re-resolve interval; last-good set retained on transient failures. |
 | `-metrics-addr`       | `METRICS_ADDR`       | `[::]:9091`    | metrics + health HTTP listener                   |
 | `-otlp-endpoint`      | `OTLP_ENDPOINT`      | `""`           | optional OTLP gRPC endpoint                      |
 | `-otlp-interval`      | `OTLP_INTERVAL`      | `15s`          |                                                  |

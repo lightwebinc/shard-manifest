@@ -25,6 +25,28 @@ when neither is set.
 | `-manifest-scope`   | `MANIFEST_SCOPE`| `site`      | Comma list of scopes: `link`, `site`, `org`, `global`. One datagram is sent per scope per tick. |
 | `-mc-group-id`      | `MC_GROUP_ID`   | `0x000B`    | 16-bit IANA multicast group-id occupying bytes [12:14] of the IPv6 group address. |
 
+## SSM (RFC 4607)
+
+See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md).
+The shard-manifest is the **authoritative publisher source set** for
+downstream SSM consumers: when `-source-mode=ssm`, every emitted
+manifest carries `Flags.SourceModeSSM` (BRC-137 bit 3) and, when
+`-publishers` is non-empty, the trailing `SourceCount × 16`-byte
+sources payload under `Flags.SourcesValid` (bit 4). Listeners and
+retry-endpoints union the source set across currently-valid manifests
+to compute their `(S,G)` data-plane joins.
+
+| Flag                  | Env                  | Default | Description                                                                                                                                          |
+| --------------------- | -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-source-mode`        | `SOURCE_MODE`        | `asm`   | When `ssm`, sets `Flags.SourceModeSSM` on every manifest and REQUIRES `-publishers` to be non-empty.                                                  |
+| `-publishers`         | `PUBLISHERS`         | `""`    | CSV of data-plane publisher addresses (IPv6 literals or DNS names; a headless-Service name is the expected production form). Resolved via `shard-common/bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union. |
+| `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`   | DNS re-resolve interval. Last-good AAAA set is retained on transient refresh failures so brief DNS outages don't empty the manifest source payload. |
+
+The shard-manifest pod's own `bindSource` is what receivers list in
+their `sources.bootstrap.manifest` to `(S,G)`-join the manifest group
+under Posture C. Distinct IPv6 per replica is required; use Multus +
+deterministic IPAM (Whereabouts) for stable per-pod addressing.
+
 ## Cadence
 
 | Flag                  | Env                  | Default   | Description                                                       |
