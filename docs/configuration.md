@@ -47,6 +47,43 @@ their `sources.bootstrap.manifest` to `(S,G)`-join the manifest group
 under Posture C. Distinct IPv6 per replica is required; use Multus +
 deterministic IPAM (Whereabouts) for stable per-pod addressing.
 
+## Pilot mode (BRC-137 auto-shard-config)
+
+A shard-manifest configured with `-pilot-only` becomes a pilot
+announcer: the manifest's groups payload describes desired fleet state
+(what consumers SHOULD join), not the announcer's own joins. Pilots
+must be `-authoritative=true`; `-pilot-only` forces it. See the
+[Automatic Shard Configuration Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/AutoShardConfig/auto-shard-config-plan.md).
+
+Operators MUST stand up at least `-pilot-quorum` (proxy/listener
+default `2`) pilot replicas with the same `-shard-bits`,
+`-generation-id`, and `-joined-groups` for consumers to adopt.
+
+| Flag           | Env           | Default | Description                                                              |
+| -------------- | ------------- | ------- | ------------------------------------------------------------------------ |
+| `-pilot-only`  | `PILOT_ONLY`  | `false` | Sets `Flags.PilotOnly` (BRC-137 bit 5) and forces `-authoritative=true`. |
+
+## Live re-sharding (BRC-137 Successor block)
+
+When the operator publishes a Successor block on a pilot's manifest,
+auto-config consumers see a `(GenerationID, ShardBits, SourceModeSSM,
+TransitionEpoch)` candidate; with `-live-resharding=true` on the
+consumer side the proxy enters dual-emit mode and the listener
+union-joins the active + successor group sets. The pilot side floor is
+`TransitionEpoch ≥ now + 2 × AnnounceInterval` (enforced at
+`config.Load`).
+
+| Flag                            | Env                          | Default | Description                                                                                                                                  |
+| ------------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-successor-generation-id`      | `SUCCESSOR_GENERATION_ID`    | `""`    | 16-byte hex; non-empty triggers Successor-block emission. All other `-successor-*` flags below are required when set.                         |
+| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST satisfy `shard-bits ± 1` per BRC-137.                                                                   |
+| `-successor-source-mode`        | `SUCCESSOR_SOURCE_MODE`      | `""`    | `asm` / `ssm`; empty inherits `-source-mode`.                                                                                                  |
+| `-successor-transition-epoch`   | `SUCCESSOR_TRANSITION_EPOCH` | `0`     | Unix seconds at which the successor becomes the sole active generation. MUST be `≥ now + 2 × AnnounceInterval`; the daemon rejects otherwise. |
+
+After `TransitionEpoch`, the operator rolls `-generation-id` forward
+to what was `-successor-generation-id` and clears the `-successor-*`
+flags so the manifest reverts to single-generation steady state.
+
 ## Cadence
 
 | Flag                  | Env                  | Default   | Description                                                       |
