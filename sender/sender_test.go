@@ -239,3 +239,82 @@ func TestJitterBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildManifest_PilotOnlyFlag(t *testing.T) {
+	c := &config.Config{
+		ShardBits:        8,
+		JoinedGroups:     []uint16{0, 1, 2, 3},
+		Encoding:         config.EncodingAuto,
+		AnnounceInterval: 300 * time.Second,
+		Authoritative:    true,
+		PilotOnly:        true,
+	}
+	s := newSender(c)
+	m, err := s.buildManifest(false)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+	if m.Flags&frame.ShardManifestFlagPilotOnly == 0 {
+		t.Errorf("PilotOnly flag not set on emitted manifest")
+	}
+	if m.Flags&frame.ShardManifestFlagAuthoritative == 0 {
+		t.Errorf("Authoritative not set (PilotOnly requires it)")
+	}
+}
+
+func TestBuildManifest_SuccessorBlockEmitted(t *testing.T) {
+	successorGenID := [16]byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
+	c := &config.Config{
+		ShardBits:        8,
+		JoinedGroups:     []uint16{0, 1, 2},
+		Encoding:         config.EncodingAuto,
+		AnnounceInterval: 300 * time.Second,
+		Authoritative:    true,
+		PilotOnly:        true,
+		Successor: &config.SuccessorConfig{
+			GenerationID:    successorGenID,
+			ShardBits:       9,
+			SourceModeSSM:   true,
+			TransitionEpoch: 1746900000,
+		},
+	}
+	s := newSender(c)
+	m, err := s.buildManifest(false)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+	if m.Flags&frame.ShardManifestFlagSuccessorValid == 0 {
+		t.Fatalf("SuccessorValid flag not set")
+	}
+	if m.Successor == nil {
+		t.Fatalf("Successor block nil")
+	}
+	if m.Successor.ShardBits != 9 {
+		t.Errorf("Successor.ShardBits = %d, want 9", m.Successor.ShardBits)
+	}
+	if m.Successor.GenerationID != successorGenID {
+		t.Errorf("Successor.GenerationID mismatch")
+	}
+	if m.Successor.Flags&frame.SuccessorFlagSourceModeSSM == 0 {
+		t.Errorf("Successor.Flags missing SourceModeSSM")
+	}
+	if m.Successor.TransitionEpoch != 1746900000 {
+		t.Errorf("Successor.TransitionEpoch = %d", m.Successor.TransitionEpoch)
+	}
+
+	// Round-trip through wire to confirm consumer-side compatibility.
+	buf := make([]byte, frame.ShardManifestSize(m))
+	if _, err := frame.EncodeShardManifest(m, buf); err != nil {
+		t.Fatalf("EncodeShardManifest: %v", err)
+	}
+	got, err := frame.DecodeShardManifest(buf)
+	if err != nil {
+		t.Fatalf("DecodeShardManifest: %v", err)
+	}
+	if got.Successor == nil || got.Successor.ShardBits != 9 {
+		t.Errorf("round-trip lost Successor: %+v", got.Successor)
+	}
+}
+
+// silence unused import for rand in older test versions.
+var _ = rand.New

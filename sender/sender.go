@@ -224,9 +224,25 @@ func (s *Sender) buildManifest(shutdown bool) (*frame.ShardManifest, error) {
 	if s.cfg.SourceMode == "ssm" {
 		m.Flags |= frame.ShardManifestFlagSourceModeSSM
 	}
+	if s.cfg.PilotOnly {
+		m.Flags |= frame.ShardManifestFlagPilotOnly
+	}
 	if srcs := s.currentSources(); len(srcs) > 0 {
 		m.Flags |= frame.ShardManifestFlagSourcesValid
 		m.Sources = srcs
+	}
+	if s.cfg.Successor != nil {
+		m.Flags |= frame.ShardManifestFlagSuccessorValid
+		var sf byte
+		if s.cfg.Successor.SourceModeSSM {
+			sf |= frame.SuccessorFlagSourceModeSSM
+		}
+		m.Successor = &frame.SuccessorBlock{
+			GenerationID:    s.cfg.Successor.GenerationID,
+			ShardBits:       s.cfg.Successor.ShardBits,
+			Flags:           sf,
+			TransitionEpoch: s.cfg.Successor.TransitionEpoch,
+		}
 	}
 
 	groups, hasClaim := resolveGroups(s.cfg)

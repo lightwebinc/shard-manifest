@@ -85,6 +85,18 @@ type Config struct {
 	Publishers        []string
 	PublishersRefresh time.Duration
 
+	// PilotOnly sets Flags.PilotOnly on emitted manifests, marking this
+	// announcer as a pilot/assignment broadcast: groups payload describes
+	// desired fleet state, not the announcer's own joins. Implies
+	// Authoritative=true (enforced at config load).
+	PilotOnly bool
+
+	// Successor describes an in-flight generation transition (BRC-137
+	// §Successor block). When set, every emitted manifest carries the
+	// block in its payload, until the operator removes the
+	// -successor-* flags after TransitionEpoch.
+	Successor *SuccessorConfig
+
 	// Observability
 	MetricsAddr  string
 	OTLPEndpoint string
@@ -92,6 +104,14 @@ type Config struct {
 
 	// Misc
 	Debug bool
+}
+
+// SuccessorConfig captures the operator-supplied successor parameters.
+type SuccessorConfig struct {
+	GenerationID    [16]byte
+	ShardBits       uint8
+	SourceModeSSM   bool
+	TransitionEpoch uint32 // Unix seconds, > now + 2 × AnnounceInterval
 }
 
 // ScopePrefixes returns the active scope prefix bytes (e.g. 0xFF05) parsed
@@ -124,26 +144,31 @@ func Load() (*Config, error) {
 	fs := flag.NewFlagSet("shard-manifest", flag.ContinueOnError)
 
 	var (
-		shardBits        = fs.Uint("shard-bits", envUint("SHARD_BITS", 0), "shard bits (0..12)")
-		joinedGroups     = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
-		encodingFlag     = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
-		roleHint         = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
-		genID            = fs.String("generation-id", os.Getenv("GENERATION_ID"), "16-byte hex (with or without dashes); empty = zero UUID")
-		authoritative    = fs.Bool("authoritative", envBool("AUTHORITATIVE", false), "set Flags.Authoritative")
-		instanceID       = fs.String("instance-id", os.Getenv("INSTANCE_ID"), "service.instance.id (defaults to hostname)")
-		iface            = fs.String("iface", os.Getenv("IFACE"), "outgoing multicast interface (defaults to first non-loopback)")
-		port             = fs.Int("port", envInt("PORT", 9001), "destination UDP port")
-		manifestScope    = fs.String("manifest-scope", envOrDefault("MANIFEST_SCOPE", "site"), "comma list of scopes: link,site,org,global")
-		mcGroupID        = fs.String("mc-group-id", envOrDefault("MC_GROUP_ID", "0x000B"), "IANA multicast group-id (16 bits)")
-		announceInterval = fs.Duration("announce-interval", envDuration("ANNOUNCE_INTERVAL", 300*time.Second), "send period")
-		ttl              = fs.Duration("ttl", envDuration("TTL", 0), "TTL on the wire (0 = consumer default)")
-		metricsAddr      = fs.String("metrics-addr", envOrDefault("METRICS_ADDR", "[::]:9091"), "metrics/health HTTP listener address")
-		otlpEndpoint     = fs.String("otlp-endpoint", os.Getenv("OTLP_ENDPOINT"), "OTLP gRPC endpoint (empty = disabled)")
-		otlpInterval     = fs.Duration("otlp-interval", envDuration("OTLP_INTERVAL", 15*time.Second), "OTLP push interval")
-		debug             = fs.Bool("debug", envBool("DEBUG", false), "verbose logging")
-		sourceMode        = fs.String("source-mode", envOrDefault("SOURCE_MODE", "asm"), "data-plane addressing model: asm|ssm")
-		publishers        = fs.String("publishers", os.Getenv("PUBLISHERS"), "comma list of data-plane publisher IPv6 addresses or DNS names (SSM Sources payload)")
-		publishersRefresh = fs.Duration("publishers-refresh", envDuration("PUBLISHERS_REFRESH", 30*time.Second), "DNS re-resolve interval for -publishers entries")
+		shardBits           = fs.Uint("shard-bits", envUint("SHARD_BITS", 0), "shard bits (0..12)")
+		joinedGroups        = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
+		encodingFlag        = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
+		roleHint            = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
+		genID               = fs.String("generation-id", os.Getenv("GENERATION_ID"), "16-byte hex (with or without dashes); empty = zero UUID")
+		authoritative       = fs.Bool("authoritative", envBool("AUTHORITATIVE", false), "set Flags.Authoritative")
+		instanceID          = fs.String("instance-id", os.Getenv("INSTANCE_ID"), "service.instance.id (defaults to hostname)")
+		iface               = fs.String("iface", os.Getenv("IFACE"), "outgoing multicast interface (defaults to first non-loopback)")
+		port                = fs.Int("port", envInt("PORT", 9001), "destination UDP port")
+		manifestScope       = fs.String("manifest-scope", envOrDefault("MANIFEST_SCOPE", "site"), "comma list of scopes: link,site,org,global")
+		mcGroupID           = fs.String("mc-group-id", envOrDefault("MC_GROUP_ID", "0x000B"), "IANA multicast group-id (16 bits)")
+		announceInterval    = fs.Duration("announce-interval", envDuration("ANNOUNCE_INTERVAL", 300*time.Second), "send period")
+		ttl                 = fs.Duration("ttl", envDuration("TTL", 0), "TTL on the wire (0 = consumer default)")
+		metricsAddr         = fs.String("metrics-addr", envOrDefault("METRICS_ADDR", "[::]:9091"), "metrics/health HTTP listener address")
+		otlpEndpoint        = fs.String("otlp-endpoint", os.Getenv("OTLP_ENDPOINT"), "OTLP gRPC endpoint (empty = disabled)")
+		otlpInterval        = fs.Duration("otlp-interval", envDuration("OTLP_INTERVAL", 15*time.Second), "OTLP push interval")
+		debug               = fs.Bool("debug", envBool("DEBUG", false), "verbose logging")
+		sourceMode          = fs.String("source-mode", envOrDefault("SOURCE_MODE", "asm"), "data-plane addressing model: asm|ssm")
+		publishers          = fs.String("publishers", os.Getenv("PUBLISHERS"), "comma list of data-plane publisher IPv6 addresses or DNS names (SSM Sources payload)")
+		publishersRefresh   = fs.Duration("publishers-refresh", envDuration("PUBLISHERS_REFRESH", 30*time.Second), "DNS re-resolve interval for -publishers entries")
+		pilotOnly           = fs.Bool("pilot-only", envBool("PILOT_ONLY", false), "set Flags.PilotOnly; manifest describes desired fleet state, not own joins (implies -authoritative=true)")
+		successorGenID      = fs.String("successor-generation-id", os.Getenv("SUCCESSOR_GENERATION_ID"), "incoming generation 16-byte hex; empty = no Successor block")
+		successorShardBits  = fs.Uint("successor-shard-bits", envUint("SUCCESSOR_SHARD_BITS", 0), "incoming generation ShardBits (must differ from -shard-bits by ±1)")
+		successorSourceMode = fs.String("successor-source-mode", envOrDefault("SUCCESSOR_SOURCE_MODE", ""), "incoming generation addressing model: asm|ssm (empty = inherit -source-mode)")
+		successorEpoch      = fs.Int("successor-transition-epoch", envInt("SUCCESSOR_TRANSITION_EPOCH", 0), "Unix seconds at which the successor becomes the sole active generation")
 	)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -254,7 +279,79 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("source-mode=ssm requires -publishers to be non-empty")
 	}
 
+	c.PilotOnly = *pilotOnly
+	if c.PilotOnly && !c.Authoritative {
+		// BRC-137 §Flags: PilotOnly=1 implies Authoritative=1. Promote
+		// rather than fail; the operator clearly intended pilot mode.
+		c.Authoritative = true
+	}
+
+	// Successor block: -successor-generation-id is the trigger.
+	if *successorGenID != "" {
+		sc, err := parseSuccessor(*successorGenID, uint8(*successorShardBits), *successorSourceMode,
+			*successorEpoch, c.ShardBits, c.SourceMode, c.AnnounceInterval)
+		if err != nil {
+			return nil, err
+		}
+		c.Successor = sc
+	} else if *successorShardBits != 0 || *successorEpoch != 0 || *successorSourceMode != "" {
+		return nil, fmt.Errorf("-successor-* flags set without -successor-generation-id")
+	}
+
 	return c, nil
+}
+
+// parseSuccessor validates the operator-supplied successor flags and
+// returns a SuccessorConfig. Enforces:
+//   - generation-id and transition-epoch required
+//   - ShardBits within ±1 of the active value
+//   - TransitionEpoch ≥ now + 2 × AnnounceInterval (BRC-137 pilot floor)
+func parseSuccessor(genIDHex string, shardBits uint8, sourceMode string, epoch int,
+	activeShardBits uint8, activeSourceMode string, announceInterval time.Duration) (*SuccessorConfig, error) {
+	if epoch == 0 {
+		return nil, fmt.Errorf("-successor-transition-epoch is required when -successor-generation-id is set")
+	}
+
+	gen, err := parseGenerationID(genIDHex)
+	if err != nil {
+		return nil, fmt.Errorf("successor-generation-id: %w", err)
+	}
+	if shardBits > frame.MaxShardBits {
+		return nil, fmt.Errorf("successor-shard-bits %d exceeds maximum %d", shardBits, frame.MaxShardBits)
+	}
+	diff := int(shardBits) - int(activeShardBits)
+	if diff < -1 || diff > 1 {
+		return nil, fmt.Errorf("|successor-shard-bits - shard-bits| > 1 (%d vs %d)", shardBits, activeShardBits)
+	}
+
+	// Resolve successor source-mode (default: inherit active).
+	mode := strings.ToLower(sourceMode)
+	if mode == "" {
+		mode = activeSourceMode
+	}
+	var ssm bool
+	switch mode {
+	case "asm":
+		ssm = false
+	case "ssm":
+		ssm = true
+	default:
+		return nil, fmt.Errorf("invalid successor-source-mode %q (asm|ssm)", sourceMode)
+	}
+
+	// Enforce pilot-side floor: TransitionEpoch ≥ now + 2 × AnnounceInterval.
+	now := time.Now().Unix()
+	floor := now + int64(2*announceInterval.Seconds())
+	if int64(epoch) < floor {
+		return nil, fmt.Errorf("successor-transition-epoch %d is below pilot floor (now + 2 × AnnounceInterval = %d)", epoch, floor)
+	}
+
+	return &SuccessorConfig{
+		GenerationID:    gen,
+		ShardBits:       shardBits,
+		SourceModeSSM:   ssm,
+		TransitionEpoch: uint32(epoch),
+	}, nil
 }
 
 // ResolveIface returns the outgoing multicast *net.Interface based on

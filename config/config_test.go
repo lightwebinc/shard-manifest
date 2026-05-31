@@ -154,3 +154,80 @@ func TestEnvHelpers(t *testing.T) {
 		t.Error("envOrDefault")
 	}
 }
+
+func TestParseSuccessor_OK(t *testing.T) {
+	// active=8, successor=9 (+1), epoch sufficiently in the future.
+	now := time.Now().Unix()
+	epoch := int(now) + 3600 // 1 hour ahead
+	sc, err := parseSuccessor(
+		"00112233445566778899AABBCCDDEEFF",
+		9, "ssm", epoch,
+		8, "asm", 300*time.Second,
+	)
+	if err != nil {
+		t.Fatalf("parseSuccessor: %v", err)
+	}
+	if sc.ShardBits != 9 {
+		t.Errorf("ShardBits = %d, want 9", sc.ShardBits)
+	}
+	if !sc.SourceModeSSM {
+		t.Errorf("SourceModeSSM = false, want true")
+	}
+	if sc.TransitionEpoch != uint32(epoch) {
+		t.Errorf("TransitionEpoch = %d, want %d", sc.TransitionEpoch, epoch)
+	}
+}
+
+func TestParseSuccessor_RejectsShiftAboveOne(t *testing.T) {
+	// active=8, successor=10 → |10-8|=2 must reject.
+	epoch := int(time.Now().Unix()) + 3600
+	_, err := parseSuccessor(
+		"00112233445566778899AABBCCDDEEFF",
+		10, "asm", epoch,
+		8, "asm", 300*time.Second,
+	)
+	if err == nil {
+		t.Fatalf("expected error for shift-of-2, got nil")
+	}
+}
+
+func TestParseSuccessor_RejectsBelowFloor(t *testing.T) {
+	// epoch < now + 2 × AnnounceInterval must reject.
+	now := time.Now().Unix()
+	epoch := int(now) + 60 // only 60s ahead vs 2×300s floor
+	_, err := parseSuccessor(
+		"00112233445566778899AABBCCDDEEFF",
+		9, "asm", epoch,
+		8, "asm", 300*time.Second,
+	)
+	if err == nil {
+		t.Fatalf("expected floor-rejection error, got nil")
+	}
+}
+
+func TestParseSuccessor_InheritsActiveSourceMode(t *testing.T) {
+	epoch := int(time.Now().Unix()) + 3600
+	sc, err := parseSuccessor(
+		"00112233445566778899AABBCCDDEEFF",
+		9, "", // empty mode ⇒ inherit
+		epoch,
+		8, "ssm", 300*time.Second,
+	)
+	if err != nil {
+		t.Fatalf("parseSuccessor: %v", err)
+	}
+	if !sc.SourceModeSSM {
+		t.Errorf("expected to inherit SSM from active, got ASM")
+	}
+}
+
+func TestParseSuccessor_MissingEpoch(t *testing.T) {
+	_, err := parseSuccessor(
+		"00112233445566778899AABBCCDDEEFF",
+		9, "asm", 0,
+		8, "asm", 300*time.Second,
+	)
+	if err == nil {
+		t.Errorf("expected error for missing epoch")
+	}
+}
