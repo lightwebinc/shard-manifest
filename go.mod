@@ -1,6 +1,6 @@
 module github.com/lightwebinc/shard-manifest
 
-go 1.25.10
+go 1.25.11
 
 require (
 	github.com/lightwebinc/shard-common v0.13.0
