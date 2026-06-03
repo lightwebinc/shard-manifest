@@ -98,9 +98,12 @@ type Config struct {
 	Successor *SuccessorConfig
 
 	// Observability
-	MetricsAddr  string
-	OTLPEndpoint string
-	OTLPInterval time.Duration
+	MetricsAddr   string
+	OTLPEndpoint  string
+	OTLPInterval  time.Duration
+	LogFormat     string  // "text" | "json" (default json for this daemon)
+	LogLevel      string  // debug|info|warn|error
+	TraceSampling float64 // 0..1 head sampling ratio; 0 disables tracing
 
 	// Misc
 	Debug bool
@@ -160,7 +163,10 @@ func Load() (*Config, error) {
 		metricsAddr         = fs.String("metrics-addr", envOrDefault("METRICS_ADDR", "[::]:9091"), "metrics/health HTTP listener address")
 		otlpEndpoint        = fs.String("otlp-endpoint", os.Getenv("OTLP_ENDPOINT"), "OTLP gRPC endpoint (empty = disabled)")
 		otlpInterval        = fs.Duration("otlp-interval", envDuration("OTLP_INTERVAL", 15*time.Second), "OTLP push interval")
-		debug               = fs.Bool("debug", envBool("DEBUG", false), "verbose logging")
+		debug               = fs.Bool("debug", envBool("DEBUG", false), "verbose logging; deprecated alias for -log-level=debug")
+		logFormat           = fs.String("log-format", envOrDefault("LOG_FORMAT", "json"), "log output format: text|json (default json)")
+		logLevel            = fs.String("log-level", envOrDefault("LOG_LEVEL", "info"), "log level: debug|info|warn|error")
+		traceSampling       = fs.Float64("trace-sampling", envFloat("TRACE_SAMPLING", 0), "trace head sampling ratio 0..1 (0 = off; exports via -otlp-endpoint)")
 		sourceMode          = fs.String("source-mode", envOrDefault("SOURCE_MODE", "asm"), "data-plane addressing model: asm|ssm")
 		publishers          = fs.String("publishers", os.Getenv("PUBLISHERS"), "comma list of data-plane publisher IPv6 addresses or DNS names (SSM Sources payload)")
 		publishersRefresh   = fs.Duration("publishers-refresh", envDuration("PUBLISHERS_REFRESH", 30*time.Second), "DNS re-resolve interval for -publishers entries")
@@ -250,6 +256,9 @@ func Load() (*Config, error) {
 	c.MetricsAddr = *metricsAddr
 	c.OTLPEndpoint = *otlpEndpoint
 	c.OTLPInterval = *otlpInterval
+	c.LogFormat = *logFormat
+	c.LogLevel = *logLevel
+	c.TraceSampling = *traceSampling
 	c.Debug = *debug
 
 	switch strings.ToLower(*sourceMode) {
@@ -507,6 +516,15 @@ func parseUint16(s string) (uint16, error) {
 func envOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func envFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
 	}
 	return def
 }

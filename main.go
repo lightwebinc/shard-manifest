@@ -15,6 +15,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lightwebinc/shard-common/hostinfo"
+	"github.com/lightwebinc/shard-common/logging"
+	"github.com/lightwebinc/shard-common/tracing"
+
 	"github.com/lightwebinc/shard-manifest/config"
 	"github.com/lightwebinc/shard-manifest/metrics"
 	"github.com/lightwebinc/shard-manifest/sender"
@@ -37,11 +41,18 @@ func run() error {
 	}
 	metrics.Version = Version
 
-	logLevel := slog.LevelInfo
+	logLevel := logging.ParseLevel(cfg.LogLevel)
 	if cfg.Debug {
 		logLevel = slog.LevelDebug
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+	levelVar := logging.Init(logging.Options{
+		Service:    metrics.ServiceName,
+		InstanceID: cfg.InstanceID,
+		Version:    Version,
+		Level:      logLevel,
+		Format:     logging.ParseFormat(cfg.LogFormat),
+	})
+	logging.InstallSIGHUPToggle(levelVar, logLevel)
 
 	slog.Info("shard-manifest starting",
 		"version", Version,
@@ -59,6 +70,31 @@ func run() error {
 		return err
 	}
 	rec.SetMaxAge(2 * cfg.AnnounceInterval)
+	rec.SetLevelVar(levelVar)
+
+	// One-shot host inventory: descriptive payload as a log event, slim
+	// numerics mirrored as the bsm_host_info gauge.
+	inv := hostinfo.Gather(metrics.ServiceName, Version)
+	rec.SetHostInfo(inv)
+	slog.Info("host.inventory", "inventory", inv)
+
+	// Opt-in distributed tracing (no-op unless -trace-sampling > 0 with an OTLP
+	// endpoint).
+	_, traceShutdown, terr := tracing.Init(context.Background(), tracing.Options{
+		Service:      metrics.ServiceName,
+		InstanceID:   cfg.InstanceID,
+		Version:      Version,
+		OTLPEndpoint: cfg.OTLPEndpoint,
+		Sampling:     cfg.TraceSampling,
+	})
+	if terr != nil {
+		slog.Warn("tracing init failed; continuing without traces", "err", terr)
+	}
+	defer func() {
+		tctx, tcancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer tcancel()
+		_ = traceShutdown(tctx)
+	}()
 
 	instanceID := hashInstanceID(cfg.InstanceID)
 

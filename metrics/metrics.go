@@ -23,6 +23,8 @@ import (
 	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/lightwebinc/shard-common/logging"
 )
 
 // ServiceName is the OTel resource service.name for this daemon.
@@ -35,6 +37,8 @@ var Version = "dev"
 type Recorder struct {
 	provider   *sdkmetric.MeterProvider
 	promReg    promclient.Gatherer
+	promOtel   *promclient.Registry
+	levelVar   *slog.LevelVar
 	startTime  time.Time
 	shutdownFn func(context.Context) error
 
@@ -107,6 +111,7 @@ func New(instanceID string, otlpEndpoint string, otlpInterval time.Duration) (*R
 	r := &Recorder{
 		provider:  mp,
 		promReg:   promclient.Gatherers{reg, runtimeReg},
+		promOtel:  reg,
 		startTime: time.Now(),
 		shutdownFn: func(ctx context.Context) error {
 			var last error
@@ -220,6 +225,9 @@ func (r *Recorder) Serve(addr string, done <-chan struct{}) {
 	mux.Handle("/metrics", promhttp.HandlerFor(r.promReg, promhttp.HandlerOpts{}))
 	mux.HandleFunc("/healthz", r.handleHealthz)
 	mux.HandleFunc("/readyz", r.handleReadyz)
+	if r.levelVar != nil {
+		mux.HandleFunc("/loglevel", logging.LevelHandler(r.levelVar))
+	}
 
 	srv := &http.Server{
 		Addr:              addr,
