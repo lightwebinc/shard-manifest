@@ -35,7 +35,9 @@ make build-cli
 ## Configuration
 
 All flags can be supplied via environment variables (UPPER_SNAKE_CASE).
-See [docs/configuration.md](docs/configuration.md) for the full reference.
+See [docs/configuration.md](docs/configuration.md) for the full reference, and the
+[Unified Logging Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/UnifiedLogging/unified-logging-plan.md)
+for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, and runtime `/loglevel`.
 
 | Flag                  | Env                  | Default        | Notes                                            |
 | --------------------- | -------------------- | -------------- | ------------------------------------------------ |

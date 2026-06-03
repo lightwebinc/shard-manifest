@@ -124,3 +124,14 @@ the IPv6 packet header source.
 The daemon does no I/O between ticks beyond Prometheus scrapes. With
 `AnnounceInterval=300s` it sends roughly one ≤ 1 KB datagram per scope per
 5 minutes. Memory is dominated by the OTel MeterProvider (~ a few MB).
+
+## Logging & Tracing
+
+The daemon uses the shared `shard-common/logging` package: `run` calls
+`logging.Init` once (JSON to stdout by default for this daemon), carrying the
+`service.{name,instance.id,version}` identity triple shared with the OTLP
+metrics resource attributes. `-log-level` is runtime-togglable via
+`POST /loglevel` and SIGHUP. A one-shot `host.inventory` event and a
+`bsm_host_info` gauge are emitted at startup. Tracing is opt-in
+(`-trace-sampling > 0` + `-otlp-endpoint`). See the
+[Unified Logging Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/UnifiedLogging/unified-logging-plan.md).
