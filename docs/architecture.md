@@ -134,4 +134,4 @@ metrics resource attributes. `-log-level` is runtime-togglable via
 `POST /loglevel` and SIGHUP. A one-shot `host.inventory` event and a
 `bsm_host_info` gauge are emitted at startup. Tracing is opt-in
 (`-trace-sampling > 0` + `-otlp-endpoint`). See the
-[Unified Logging Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/UnifiedLogging/unified-logging-plan.md).
+[Unified Logging Plan](https://github.com/lightwebinc/shard-common/blob/main/docs/logging.md).

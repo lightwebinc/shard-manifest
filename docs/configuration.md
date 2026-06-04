@@ -98,7 +98,7 @@ flags so the manifest reverts to single-generation steady state.
 | `-metrics-addr`     | `METRICS_ADDR`  | `[::]:9091`   | HTTP listener for `/metrics`, `/healthz`, `/readyz`.   |
 | `-otlp-endpoint`    | `OTLP_ENDPOINT` | `""`          | OTLP gRPC endpoint (e.g. `otel-collector:4317`). Empty disables OTLP push. |
 | `-otlp-interval`    | `OTLP_INTERVAL` | `15s`         | OTLP push interval.                                    |
-| `-log-format`       | `LOG_FORMAT`    | `json`        | Log output: `text` (stderr) or `json` (stdout, default for this daemon). Lines carry `service.{name,instance.id,version}` shared with OTLP metrics. See [Unified Logging](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/UnifiedLogging/unified-logging-plan.md). |
+| `-log-format`       | `LOG_FORMAT`    | `json`        | Log output: `text` (stderr) or `json` (stdout, default for this daemon). Lines carry `service.{name,instance.id,version}` shared with OTLP metrics. See [Unified Logging](https://github.com/lightwebinc/shard-common/blob/main/docs/logging.md). |
 | `-log-level`        | `LOG_LEVEL`     | `info`        | `debug` \| `info` \| `warn` \| `error`. Runtime-togglable via `POST /loglevel` and SIGHUP. |
 | `-trace-sampling`   | `TRACE_SAMPLING`| `0`           | Trace head sampling ratio `0`–`1` (`0` = no-op tracer; exports via `-otlp-endpoint`). Startup emits a one-shot `host.inventory` event + `bsm_host_info` gauge. |
 | `-debug`            | `DEBUG`         | `false`       | Deprecated alias for `-log-level=debug`.               |
