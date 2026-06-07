@@ -1,5 +1,7 @@
 # shard-manifest
 
+> Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project — see the main repository for the full architecture, design docs, and BRC specifications.
+
 `shard-manifest` is a tiny standalone daemon that periodically
 multicasts [BRC-137](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-137-shard-manifest.md)
 ShardManifest datagrams. Each manifest advertises the local participant's
