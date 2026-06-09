@@ -91,7 +91,7 @@ type Config struct {
 	// Authoritative=true (enforced at config load).
 	PilotOnly bool
 
-	// Successor describes an in-flight generation transition (BRC-137
+	// Successor describes an in-flight generation transition (BRC-139
 	// §Successor block). When set, every emitted manifest carries the
 	// block in its payload, until the operator removes the
 	// -successor-* flags after TransitionEpoch.
@@ -290,7 +290,7 @@ func Load() (*Config, error) {
 
 	c.PilotOnly = *pilotOnly
 	if c.PilotOnly && !c.Authoritative {
-		// BRC-137 §Flags: PilotOnly=1 implies Authoritative=1. Promote
+		// BRC-139 §Flags: PilotOnly=1 implies Authoritative=1. Promote
 		// rather than fail; the operator clearly intended pilot mode.
 		c.Authoritative = true
 	}
@@ -314,7 +314,7 @@ func Load() (*Config, error) {
 // returns a SuccessorConfig. Enforces:
 //   - generation-id and transition-epoch required
 //   - ShardBits within ±1 of the active value
-//   - TransitionEpoch ≥ now + 2 × AnnounceInterval (BRC-137 pilot floor)
+//   - TransitionEpoch ≥ now + 2 × AnnounceInterval (BRC-139 pilot floor)
 func parseSuccessor(genIDHex string, shardBits uint8, sourceMode string, epoch int,
 	activeShardBits uint8, activeSourceMode string, announceInterval time.Duration) (*SuccessorConfig, error) {
 	if epoch == 0 {

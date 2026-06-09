@@ -2,7 +2,7 @@
 
 `shard-manifest` is a single-purpose periodic announcer. It does
 **not** ingress, cache, retransmit, or interpret data-plane frames; it only
-emits BRC-137 ShardManifest datagrams.
+emits BRC-139 ShardManifest datagrams.
 
 ## Data flow
 
@@ -72,7 +72,7 @@ long-running daemon.
 
 ## On-the-wire format
 
-See [BRC-137](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-137-shard-manifest.md)
+See [BRC-139](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-139-shard-manifest.md)
 for the complete specification. Key points:
 
 - 64-byte header + variable-length payload (list of 16-bit indices or bitmap),
@@ -100,7 +100,7 @@ When `-source-mode=ssm` is set:
 - Consumers union the sources across all currently-valid manifests they
   hold and feed the union into `(S,G)` data-plane joins.
 
-See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md)
+See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm)
 for the full Posture C design.
 
 ## Identity

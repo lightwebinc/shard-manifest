@@ -3,7 +3,7 @@
 > Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project — see the main repository for the full architecture, design docs, and BRC specifications.
 
 `shard-manifest` is a tiny standalone daemon that periodically
-multicasts [BRC-137](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-137-shard-manifest.md)
+multicasts [BRC-139](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-139-shard-manifest.md)
 ShardManifest datagrams. Each manifest advertises the local participant's
 `shard_bits` configuration, the set of shard group indices it claims to have
 joined, identity, timestamp, TTL, and a `GenerationID`. Manifests are sent
@@ -55,8 +55,8 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 | `-port`               | `PORT`               | `9001`         | UDP destination port                             |
 | `-iface`              | `IFACE`              | (auto-pick)    | egress interface                                 |
 | `-mc-group-id`        | `MC_GROUP_ID`        | `0x000B`       | IANA group-id                                    |
-| `-source-mode`        | `SOURCE_MODE`        | `asm`          | `asm` or `ssm`. SSM sets `Flags.SourceModeSSM` on every manifest and requires `-publishers`. See [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md). |
-| `-publishers`         | `PUBLISHERS`         | `""`           | CSV of data-plane publisher IPv6 literals or DNS names. Resolved via `bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union (BRC-137 bit 4). |
+| `-source-mode`        | `SOURCE_MODE`        | `asm`          | `asm` or `ssm`. SSM sets `Flags.SourceModeSSM` on every manifest and requires `-publishers`. See [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm). |
+| `-publishers`         | `PUBLISHERS`         | `""`           | CSV of data-plane publisher IPv6 literals or DNS names. Resolved via `bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union (BRC-139 bit 4). |
 | `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`          | DNS re-resolve interval; last-good set retained on transient failures. |
 | `-metrics-addr`       | `METRICS_ADDR`       | `[::]:9091`    | metrics + health HTTP listener                   |
 | `-otlp-endpoint`      | `OTLP_ENDPOINT`      | `""`           | optional OTLP gRPC endpoint                      |

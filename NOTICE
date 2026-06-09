@@ -3,7 +3,7 @@ Copyright 2026 Lightweb Inc. (https://lightweb.net)
 
 =========================================================================
 
-This software is a small standalone daemon that periodically emits BRC-137
+This software is a small standalone daemon that periodically emits BRC-139
 ShardManifest datagrams to the IPv6 multicast beacon group, advertising
 the local participant's shard_bits configuration and the set of shard
 groups it has joined. It is intended for use alongside shard-proxy,
@@ -27,7 +27,7 @@ software draws inspiration was articulated by Dr. Craig S. Wright:
 =========================================================================
 Third-Party Standards
 
-This software implements BRC-137: Shard Manifest Announcement, a
+This software implements BRC-139: Shard Manifest Announcement, a
 companion specification to the BSV multicast transaction distribution
 stack. Wire-frame magic and protocol version constants are inherited
 from BRC-12 and BRC-124, published standards maintained by BSV

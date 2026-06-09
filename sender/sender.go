@@ -1,4 +1,4 @@
-// Package sender implements the BRC-137 ShardManifest sender loop. It
+// Package sender implements the BRC-139 ShardManifest sender loop. It
 // builds and emits ShardManifest datagrams to one or more beacon multicast
 // groups on a configurable cadence.
 package sender

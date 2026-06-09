@@ -1,4 +1,4 @@
-// Command manifest-emit sends a single BRC-137 ShardManifest datagram and
+// Command manifest-emit sends a single BRC-139 ShardManifest datagram and
 // exits. Useful for smoke-testing connectivity, multicast routing, and
 // listener-side dispatch without running the full daemon.
 package main

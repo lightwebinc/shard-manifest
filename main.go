@@ -1,5 +1,5 @@
 // Command shard-manifest is a small standalone daemon that
-// periodically emits BRC-137 ShardManifest datagrams to the IPv6 multicast
+// periodically emits BRC-139 ShardManifest datagrams to the IPv6 multicast
 // beacon group. It advertises the local participant's shard_bits
 // configuration and the set of shard groups it has joined so operators (and
 // future automation) can detect divergence and coordinate shifts.

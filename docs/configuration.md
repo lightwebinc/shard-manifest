@@ -27,10 +27,10 @@ when neither is set.
 
 ## SSM (RFC 4607)
 
-See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/SourceSpecificMulticast/ssm-support-plan.md).
+See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm).
 The shard-manifest is the **authoritative publisher source set** for
 downstream SSM consumers: when `-source-mode=ssm`, every emitted
-manifest carries `Flags.SourceModeSSM` (BRC-137 bit 3) and, when
+manifest carries `Flags.SourceModeSSM` (BRC-139 bit 3) and, when
 `-publishers` is non-empty, the trailing `SourceCount × 16`-byte
 sources payload under `Flags.SourcesValid` (bit 4). Listeners and
 retry-endpoints union the source set across currently-valid manifests
@@ -47,13 +47,13 @@ their `sources.bootstrap.manifest` to `(S,G)`-join the manifest group
 under Posture C. Distinct IPv6 per replica is required; use Multus +
 deterministic IPAM (Whereabouts) for stable per-pod addressing.
 
-## Pilot mode (BRC-137 auto-shard-config)
+## Pilot mode (BRC-139 auto-shard-config)
 
 A shard-manifest configured with `-pilot-only` becomes a pilot
 announcer: the manifest's groups payload describes desired fleet state
 (what consumers SHOULD join), not the announcer's own joins. Pilots
 must be `-authoritative=true`; `-pilot-only` forces it. See the
-[Automatic Shard Configuration Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/AutoShardConfig/auto-shard-config-plan.md).
+[Automatic Shard Configuration Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#automatic-shard-configuration).
 
 Operators MUST stand up at least `-pilot-quorum` (proxy/listener
 default `2`) pilot replicas with the same `-shard-bits`,
@@ -61,9 +61,9 @@ default `2`) pilot replicas with the same `-shard-bits`,
 
 | Flag           | Env           | Default | Description                                                              |
 | -------------- | ------------- | ------- | ------------------------------------------------------------------------ |
-| `-pilot-only`  | `PILOT_ONLY`  | `false` | Sets `Flags.PilotOnly` (BRC-137 bit 5) and forces `-authoritative=true`. |
+| `-pilot-only`  | `PILOT_ONLY`  | `false` | Sets `Flags.PilotOnly` (BRC-139 bit 5) and forces `-authoritative=true`. |
 
-## Live re-sharding (BRC-137 Successor block)
+## Live re-sharding (BRC-139 Successor block)
 
 When the operator publishes a Successor block on a pilot's manifest,
 auto-config consumers see a `(GenerationID, ShardBits, SourceModeSSM,
@@ -76,7 +76,7 @@ union-joins the active + successor group sets. The pilot side floor is
 | Flag                            | Env                          | Default | Description                                                                                                                                  |
 | ------------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-successor-generation-id`      | `SUCCESSOR_GENERATION_ID`    | `""`    | 16-byte hex; non-empty triggers Successor-block emission. All other `-successor-*` flags below are required when set.                         |
-| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST satisfy `shard-bits ± 1` per BRC-137.                                                                   |
+| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST satisfy `shard-bits ± 1` per BRC-139.                                                                   |
 | `-successor-source-mode`        | `SUCCESSOR_SOURCE_MODE`      | `""`    | `asm` / `ssm`; empty inherits `-source-mode`.                                                                                                  |
 | `-successor-transition-epoch`   | `SUCCESSOR_TRANSITION_EPOCH` | `0`     | Unix seconds at which the successor becomes the sole active generation. MUST be `≥ now + 2 × AnnounceInterval`; the daemon rejects otherwise. |
 
