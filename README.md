@@ -79,8 +79,10 @@ Metric series:
 | `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`write`                         |
 | `bsm_shard_bits`                  | gauge     | —           | currently advertised value                       |
 | `bsm_joined_groups`               | gauge     | —           | currently advertised join count                  |
+| `bsm_publisher_count`             | gauge     | —           | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
 | `bsm_last_send_unixtime`          | gauge     | —           | last successful send                             |
 | `bsm_build_info`                  | gauge     | `version`,`instance` | always 1                                |
+| `bsm_host_info`                   | gauge     | `hostname`,`kernel_version`,`cpu_logical`,`mem_bytes`,`rmem_max`,`nic`,`speed_mbps`,`version` | static host facts (always 1); join with `host.inventory` log |
 
 The daemon also serves runtime collectors (`go_*`, `process_*`) on the same
 endpoint.
@@ -103,7 +105,7 @@ consumers MAY evict the corresponding registry entry immediately.
 ├── docs/                   # architecture + configuration docs
 ├── Dockerfile
 ├── Makefile
-└── .github/workflows/{ci,release}.yml
+└── .github/workflows/{ci,image-publish,release,codeql}.yml
 ```
 
 ## License

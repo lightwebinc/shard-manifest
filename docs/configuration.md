@@ -59,6 +59,11 @@ Operators MUST stand up at least `-pilot-quorum` (proxy/listener
 default `2`) pilot replicas with the same `-shard-bits`,
 `-generation-id`, and `-joined-groups` for consumers to adopt.
 
+> **Note:** `-pilot-quorum` is a **consumer-side** knob (proxy/listener),
+> not a shard-manifest flag. It sets how many agreeing pilot manifests a
+> consumer requires before adopting a configuration. shard-manifest only
+> *emits* pilot manifests; it does not observe or count quorum.
+
 | Flag           | Env           | Default | Description                                                              |
 | -------------- | ------------- | ------- | ------------------------------------------------------------------------ |
 | `-pilot-only`  | `PILOT_ONLY`  | `false` | Sets `Flags.PilotOnly` (BRC-139 bit 5) and forces `-authoritative=true`. |
@@ -72,6 +77,10 @@ consumer side the proxy enters dual-emit mode and the listener
 union-joins the active + successor group sets. The pilot side floor is
 `TransitionEpoch ≥ now + 2 × AnnounceInterval` (enforced at
 `config.Load`).
+
+> **Note:** `-live-resharding` is a **consumer-side** knob (proxy/listener),
+> not a shard-manifest flag. shard-manifest only emits the Successor block
+> via the `-successor-*` flags below; consumers gate whether they act on it.
 
 | Flag                            | Env                          | Default | Description                                                                                                                                  |
 | ------------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
