@@ -16,6 +16,7 @@ profile.cov
 /build/
 /shard-manifest
 /manifest-emit
+/ci/ci
 
 # Go workspace files
 go.work
