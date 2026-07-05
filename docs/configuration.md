@@ -8,7 +8,7 @@ when neither is set.
 
 | Flag                | Env             | Default     | Description                                                                 |
 | ------------------- | --------------- | ----------- | --------------------------------------------------------------------------- |
-| `-shard-bits`       | `SHARD_BITS`    | `0`         | Number of TxID prefix bits used as the shard group key (0..12). Required.   |
+| `-shard-bits`       | `SHARD_BITS`    | `0`         | Number of TxID prefix bits used as the shard group key (0..12). The default `0` is a valid single-group configuration (see Behaviour notes). |
 | `-joined-groups`    | `JOINED_GROUPS` | `""`        | Comma list of group indices (decimal or `0x` hex), or `all`, or empty.      |
 | `-bitmap`           | `BITMAP`        | `auto`      | Encoding form: `auto` (list ≤32 entries, else bitmap), `list`, or `bitmap`. |
 | `-role-hint`        | `ROLE_HINT`     | `generic`   | One of `generic`, `proxy`, `listener`, `retry-endpoint`, `producer`, `manifest-only`. Informational. |
@@ -42,10 +42,11 @@ to compute their `(S,G)` data-plane joins.
 | `-publishers`         | `PUBLISHERS`         | `""`    | CSV of data-plane publisher addresses (IPv6 literals or DNS names; a headless-Service name is the expected production form). Resolved via `shard-common/bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union. |
 | `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`   | DNS re-resolve interval. Last-good AAAA set is retained on transient refresh failures so brief DNS outages don't empty the manifest source payload. |
 
-The shard-manifest pod's own `bindSource` is what receivers list in
-their `sources.bootstrap.manifest` to `(S,G)`-join the manifest group
-under Posture C. Distinct IPv6 per replica is required; use Multus +
-deterministic IPAM (Whereabouts) for stable per-pod addressing.
+The shard-manifest pod's own source IPv6 is what receivers pass to
+`-ssm-bootstrap-manifest` (helm: `listener.ssmBootstrap.manifest`) to
+`(S,G)`-join the manifest group under Posture C. Distinct IPv6 per
+replica is required; use Multus + deterministic IPAM (Whereabouts) for
+stable per-pod addressing.
 
 ## Pilot mode (BRC-139 auto-shard-config)
 
@@ -98,7 +99,7 @@ flags so the manifest reverts to single-generation steady state.
 | Flag                  | Env                  | Default   | Description                                                       |
 | --------------------- | -------------------- | --------- | ----------------------------------------------------------------- |
 | `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`    | Time between sends. Each send is jittered by ±10 %.               |
-| `-ttl`                | `TTL`                | `0`       | Wire-format TTL in seconds. `0` = consumer applies its default (3× interval). |
+| `-ttl`                | `TTL`                | `0s`      | Go duration (e.g. `-ttl=900s`); encoded on the wire as whole seconds. `0` = consumer applies its default (3× interval). |
 
 ## Observability
 

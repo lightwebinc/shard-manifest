@@ -9,7 +9,7 @@ LDFLAGS  := -s -w -X main.Version=$(VERSION) -X github.com/lightwebinc/shard-man
 
 DAGGER_RUN := GOWORK=off go run .
 
-.PHONY: all build build-cli test lint tidy clean install-source \
+.PHONY: all build build-cli test lint tidy clean install-manifest \
         ci ci-unit ci-lint ci-vuln ci-tidy ci-build ci-image ci-export ci-publish ci-shell \
         fmt help
 

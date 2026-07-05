@@ -43,7 +43,7 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 
 | Flag                  | Env                  | Default        | Notes                                            |
 | --------------------- | -------------------- | -------------- | ------------------------------------------------ |
-| `-shard-bits`         | `SHARD_BITS`         | required       | 0..12                                            |
+| `-shard-bits`         | `SHARD_BITS`         | `0`            | 0..12; `0` = valid single-group configuration    |
 | `-joined-groups`      | `JOINED_GROUPS`      | `""`           | comma list of indices (hex/dec), or `all`        |
 | `-bitmap`             | `BITMAP`             | `auto`         | `auto`/`list`/`bitmap`                           |
 | `-role-hint`          | `ROLE_HINT`          | `generic`      | proxy/listener/retry-endpoint/producer/...       |
@@ -51,7 +51,7 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 | `-authoritative`      | `AUTHORITATIVE`      | `false`        | sets Flags.Authoritative                         |
 | `-manifest-scope`     | `MANIFEST_SCOPE`     | `site`         | comma list of `link,site,org,global`             |
 | `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`         |                                                  |
-| `-ttl`                | `TTL`                | `0`            | seconds; 0 = consumer default (3× interval)      |
+| `-ttl`                | `TTL`                | `0s`           | Go duration (e.g. `900s`); wire encodes whole seconds; 0 = consumer default (3× interval) |
 | `-port`               | `PORT`               | `9001`         | UDP destination port                             |
 | `-iface`              | `IFACE`              | (auto-pick)    | egress interface                                 |
 | `-mc-group-id`        | `MC_GROUP_ID`        | `0x000B`       | IANA group-id                                    |

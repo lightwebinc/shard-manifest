@@ -69,7 +69,7 @@ type Config struct {
 	// Network
 	Iface         string
 	Port          int
-	ManifestScope string // comma list: site,org,global
+	ManifestScope string // comma list: link,site,org,global
 	MCGroupID     uint16
 
 	// Cadence
