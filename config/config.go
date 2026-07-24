@@ -123,7 +123,8 @@ type SuccessorConfig struct {
 }
 
 // DomainConfig captures one operator-supplied BRC-148 plane descriptor,
-// parsed from `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]`.
+// parsed from
+// `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32][:succbits=N:succepoch=T[:succgen=HEX32][:succssm]]`.
 type DomainConfig struct {
 	ID           uint8
 	ShardBits    uint8
@@ -131,6 +132,27 @@ type DomainConfig struct {
 	SSM          bool
 	Active       bool
 	GenerationID [16]byte
+	// Successor, when non-nil, announces an in-flight generation transition
+	// for this plane (BRC-148 per-domain Successor). Requires the announcer
+	// to be Authoritative; SuccBits must be within ±1 of ShardBits (both
+	// enforced by frame.EncodeShardManifest at send time).
+	Successor *DomainSuccessorConfig
+}
+
+// DomainSuccessorConfig is one plane's in-flight generation transition.
+type DomainSuccessorConfig struct {
+	ShardBits       uint8
+	SSM             bool
+	TransitionEpoch uint32
+	GenerationID    [16]byte
+}
+
+// ensureSuccessor lazily allocates the per-domain successor block.
+func (d *DomainConfig) ensureSuccessor() *DomainSuccessorConfig {
+	if d.Successor == nil {
+		d.Successor = &DomainSuccessorConfig{}
+	}
+	return d.Successor
 }
 
 // multiFlag collects a repeatable string flag.
@@ -177,12 +199,40 @@ func parseDomainSpec(spec string) (DomainConfig, error) {
 			d.SSM = true
 		case p == "active":
 			d.Active = true
+		case strings.HasPrefix(p, "succbits="):
+			v, err := strconv.ParseUint(p[len("succbits="):], 0, 8)
+			if err != nil || v < 1 || v > 15 {
+				return d, fmt.Errorf("-domain %q: succbits must be 1-15", spec)
+			}
+			d.ensureSuccessor().ShardBits = uint8(v)
+		case strings.HasPrefix(p, "succepoch="):
+			v, err := strconv.ParseUint(p[len("succepoch="):], 0, 32)
+			if err != nil {
+				return d, fmt.Errorf("-domain %q: succepoch must be a Unix-seconds uint32", spec)
+			}
+			d.ensureSuccessor().TransitionEpoch = uint32(v)
+		case strings.HasPrefix(p, "succgen="):
+			b, err := hex.DecodeString(p[len("succgen="):])
+			if err != nil || len(b) != 16 {
+				return d, fmt.Errorf("-domain %q: succgen must be 32 hex chars", spec)
+			}
+			copy(d.ensureSuccessor().GenerationID[:], b)
+		case p == "succssm":
+			d.ensureSuccessor().SSM = true
 		default:
 			return d, fmt.Errorf("-domain %q: unknown token %q", spec, p)
 		}
 	}
 	if d.ShardBits == 0 {
 		return d, fmt.Errorf("-domain %q: bits= is required", spec)
+	}
+	if d.Successor != nil {
+		if d.Successor.ShardBits == 0 {
+			return d, fmt.Errorf("-domain %q: succbits= required with a successor", spec)
+		}
+		if d.Successor.TransitionEpoch == 0 {
+			return d, fmt.Errorf("-domain %q: succepoch= required with a successor", spec)
+		}
 	}
 	if d.SlotSpan == 0 {
 		d.SlotSpan = 1

@@ -154,7 +154,6 @@ shard-manifest \
 
 | Flag / Env | Default | Description |
 |------------|---------|-------------|
-| `-domain` (repeatable) / `DOMAINS` (comma-separated) | — | One BRC-148 plane descriptor per entry: `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]`. Sets `DomainsValid` (BRC-139 flags bit 7) and appends the Domains section after the successor block. SlotSpan defaults to the implied span (`ceil(2^bits/4096)`). Wire-level constraints (unique IDs ≤ 0x0E, slot overlap, control-plane bound, domain-0 top-level agreement) are enforced at encode time |
+| `-domain` (repeatable) / `DOMAINS` (comma-separated) | — | One BRC-148 plane descriptor per entry: `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32][:succbits=N:succepoch=T[:succgen=HEX32][:succssm]]`. The trailing `succ*` tokens announce a per-domain in-flight generation transition (Successor block) — the announcer must be `-authoritative` and `succbits` must be within ±1 of `bits` (enforced at encode). Sets `DomainsValid` (BRC-139 flags bit 7) and appends the Domains section after the successor block. SlotSpan defaults to the implied span (`ceil(2^bits/4096)`). Wire-level constraints (unique IDs ≤ 0x0E, slot overlap, control-plane bound, domain-0 top-level agreement) are enforced at encode time |
 
-Per-domain successor announcements are a follow-up; the wire codec and the
-consumer evaluator already support them.
+Per-domain successor announcements are supported (the `succ*` tokens above); the consumer evaluator adopts them per domain.

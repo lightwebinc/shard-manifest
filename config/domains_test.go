@@ -41,3 +41,28 @@ func TestParseDomainSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDomainSpecSuccessor(t *testing.T) {
+	d, err := parseDomainSpec("1:bits=12:active:succbits=13:succepoch=1700000000:succssm:succgen=000102030405060708090a0b0c0d0e0f")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if d.Successor == nil {
+		t.Fatal("successor not parsed")
+	}
+	if d.Successor.ShardBits != 13 || d.Successor.TransitionEpoch != 1700000000 || !d.Successor.SSM {
+		t.Fatalf("successor fields: %+v", d.Successor)
+	}
+	if d.Successor.GenerationID[15] != 0x0f {
+		t.Fatalf("successor generation not parsed: %x", d.Successor.GenerationID)
+	}
+
+	// succbits without succepoch is rejected.
+	if _, err := parseDomainSpec("1:bits=12:succbits=13"); err == nil {
+		t.Error("missing succepoch accepted")
+	}
+	// succepoch without succbits is rejected.
+	if _, err := parseDomainSpec("1:bits=12:succepoch=1700000000"); err == nil {
+		t.Error("missing succbits accepted")
+	}
+}

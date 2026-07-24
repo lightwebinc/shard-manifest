@@ -261,6 +261,19 @@ func (s *Sender) buildManifest(shutdown bool) (*frame.ShardManifest, error) {
 			if d.Active {
 				dd.Flags |= frame.DomainFlagActive
 			}
+			if d.Successor != nil {
+				dd.Flags |= frame.DomainFlagSuccessorValid
+				var sf byte
+				if d.Successor.SSM {
+					sf |= frame.SuccessorFlagSourceModeSSM
+				}
+				dd.Successor = &frame.SuccessorBlock{
+					GenerationID:    d.Successor.GenerationID,
+					ShardBits:       d.Successor.ShardBits,
+					Flags:           sf,
+					TransitionEpoch: d.Successor.TransitionEpoch,
+				}
+			}
 			m.Domains = append(m.Domains, dd)
 		}
 	}
