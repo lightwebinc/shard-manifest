@@ -97,6 +97,11 @@ type Config struct {
 	// -successor-* flags after TransitionEpoch.
 	Successor *SuccessorConfig
 
+	// Domains carries the BRC-148 per-plane descriptors announced in the
+	// manifest's Domains section (repeatable -domain flag / DOMAINS env).
+	// Per-domain successors are a follow-up; the wire codec supports them.
+	Domains []DomainConfig
+
 	// Observability
 	MetricsAddr   string
 	OTLPEndpoint  string
@@ -115,6 +120,77 @@ type SuccessorConfig struct {
 	ShardBits       uint8
 	SourceModeSSM   bool
 	TransitionEpoch uint32 // Unix seconds, > now + 2 × AnnounceInterval
+}
+
+// DomainConfig captures one operator-supplied BRC-148 plane descriptor,
+// parsed from `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]`.
+type DomainConfig struct {
+	ID           uint8
+	ShardBits    uint8
+	SlotSpan     uint8
+	SSM          bool
+	Active       bool
+	GenerationID [16]byte
+}
+
+// multiFlag collects a repeatable string flag.
+type multiFlag []string
+
+func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
+
+// parseDomainSpec parses one -domain entry.
+func parseDomainSpec(spec string) (DomainConfig, error) {
+	var d DomainConfig
+	parts := strings.Split(spec, ":")
+	if len(parts) < 2 {
+		return d, fmt.Errorf("-domain %q: want id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX]", spec)
+	}
+	id, err := strconv.ParseUint(strings.TrimSpace(parts[0]), 0, 8)
+	if err != nil || id > 0x0E {
+		return d, fmt.Errorf("-domain %q: DomainID must be 0x00-0x0E", spec)
+	}
+	d.ID = uint8(id)
+
+	for _, p := range parts[1:] {
+		p = strings.TrimSpace(p)
+		switch {
+		case strings.HasPrefix(p, "bits="):
+			v, err := strconv.ParseUint(p[len("bits="):], 0, 8)
+			if err != nil || v < 1 || v > 15 {
+				return d, fmt.Errorf("-domain %q: bits must be 1-15", spec)
+			}
+			d.ShardBits = uint8(v)
+		case strings.HasPrefix(p, "slotspan="):
+			v, err := strconv.ParseUint(p[len("slotspan="):], 0, 8)
+			if err != nil || v < 1 || v > 15 {
+				return d, fmt.Errorf("-domain %q: slotspan must be 1-15", spec)
+			}
+			d.SlotSpan = uint8(v)
+		case strings.HasPrefix(p, "generation="):
+			b, err := hex.DecodeString(p[len("generation="):])
+			if err != nil || len(b) != 16 {
+				return d, fmt.Errorf("-domain %q: generation must be 32 hex chars", spec)
+			}
+			copy(d.GenerationID[:], b)
+		case p == "ssm":
+			d.SSM = true
+		case p == "active":
+			d.Active = true
+		default:
+			return d, fmt.Errorf("-domain %q: unknown token %q", spec, p)
+		}
+	}
+	if d.ShardBits == 0 {
+		return d, fmt.Errorf("-domain %q: bits= is required", spec)
+	}
+	if d.SlotSpan == 0 {
+		d.SlotSpan = 1
+		if d.ShardBits > 12 {
+			d.SlotSpan = 1 << (d.ShardBits - 12)
+		}
+	}
+	return d, nil
 }
 
 // ScopePrefixes returns the active scope prefix bytes (e.g. 0xFF05) parsed
@@ -175,6 +251,16 @@ func Load() (*Config, error) {
 		successorShardBits  = fs.Uint("successor-shard-bits", envUint("SUCCESSOR_SHARD_BITS", 0), "incoming generation ShardBits (must differ from -shard-bits by ±1)")
 		successorSourceMode = fs.String("successor-source-mode", envOrDefault("SUCCESSOR_SOURCE_MODE", ""), "incoming generation addressing model: asm|ssm (empty = inherit -source-mode)")
 		successorEpoch      = fs.Int("successor-transition-epoch", envInt("SUCCESSOR_TRANSITION_EPOCH", 0), "Unix seconds at which the successor becomes the sole active generation")
+	)
+	var domainSpecs multiFlag
+	for _, e := range strings.Split(os.Getenv("DOMAINS"), ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			domainSpecs = append(domainSpecs, e)
+		}
+	}
+	fs.Var(&domainSpecs, "domain",
+		"BRC-148 plane descriptor `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]` (repeatable; env DOMAINS comma-separated)")
+	var (
 	)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -305,6 +391,17 @@ func Load() (*Config, error) {
 		c.Successor = sc
 	} else if *successorShardBits != 0 || *successorEpoch != 0 || *successorSourceMode != "" {
 		return nil, fmt.Errorf("-successor-* flags set without -successor-generation-id")
+	}
+
+	// BRC-148 Domains descriptors (repeatable -domain / DOMAINS env). The
+	// wire-level constraints (uniqueness, slot overlap, domain-0 agreement)
+	// are enforced by frame.EncodeShardManifest at send time.
+	for _, spec := range domainSpecs {
+		d, err := parseDomainSpec(spec)
+		if err != nil {
+			return nil, err
+		}
+		c.Domains = append(c.Domains, d)
 	}
 
 	return c, nil

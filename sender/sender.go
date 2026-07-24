@@ -245,6 +245,26 @@ func (s *Sender) buildManifest(shutdown bool) (*frame.ShardManifest, error) {
 		}
 	}
 
+	// BRC-148 Domains section: one descriptor per configured plane.
+	if len(s.cfg.Domains) > 0 {
+		m.Flags |= frame.ShardManifestFlagDomainsValid
+		for _, d := range s.cfg.Domains {
+			dd := frame.DomainDescriptor{
+				DomainID:     d.ID,
+				ShardBits:    d.ShardBits,
+				SlotSpan:     d.SlotSpan,
+				GenerationID: d.GenerationID,
+			}
+			if d.SSM {
+				dd.Flags |= frame.DomainFlagSourceModeSSM
+			}
+			if d.Active {
+				dd.Flags |= frame.DomainFlagActive
+			}
+			m.Domains = append(m.Domains, dd)
+		}
+	}
+
 	groups, hasClaim := resolveGroups(s.cfg)
 	if hasClaim {
 		m.Flags |= frame.ShardManifestFlagGroupsValid
