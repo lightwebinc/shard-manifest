@@ -273,7 +273,7 @@ func Load() (*Config, error) {
 	fs := flag.NewFlagSet("shard-manifest", flag.ContinueOnError)
 
 	var (
-		shardBits           = fs.Uint("shard-bits", envUint("SHARD_BITS", 0), "shard bits (0..12)")
+		shardBits           = fs.Uint("shard-bits", envUint("SHARD_BITS", 2), "shard bits (0..12)")
 		joinedGroups        = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
 		encodingFlag        = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
 		roleHint            = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
