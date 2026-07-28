@@ -310,8 +310,7 @@ func Load() (*Config, error) {
 	}
 	fs.Var(&domainSpecs, "domain",
 		"BRC-148 plane descriptor `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]` (repeatable; env DOMAINS comma-separated)")
-	var (
-	)
+	var ()
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return nil, err
