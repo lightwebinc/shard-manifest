@@ -8,7 +8,7 @@ when neither is set.
 
 | Flag                | Env             | Default     | Description                                                                 |
 | ------------------- | --------------- | ----------- | --------------------------------------------------------------------------- |
-| `-shard-bits`       | `SHARD_BITS`    | `0`         | Number of TxID prefix bits used as the shard group key (0..12). The default `0` is a valid single-group configuration (see Behaviour notes). |
+| `-shard-bits`       | `SHARD_BITS`    | `2`         | Number of TxID prefix bits used as the shard group key (0..12). `0` is a valid single-group configuration (see Behaviour notes). |
 | `-joined-groups`    | `JOINED_GROUPS` | `""`        | Comma list of group indices (decimal or `0x` hex), or `all`, or empty.      |
 | `-bitmap`           | `BITMAP`        | `auto`      | Encoding form: `auto` (list ≤32 entries, else bitmap), `list`, or `bitmap`. |
 | `-role-hint`        | `ROLE_HINT`     | `generic`   | One of `generic`, `proxy`, `listener`, `retry-endpoint`, `producer`, `manifest-only`. Informational. |

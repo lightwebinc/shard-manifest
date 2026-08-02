@@ -43,7 +43,7 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 
 | Flag                  | Env                  | Default        | Notes                                            |
 | --------------------- | -------------------- | -------------- | ------------------------------------------------ |
-| `-shard-bits`         | `SHARD_BITS`         | `0`            | 0..12; `0` = valid single-group configuration    |
+| `-shard-bits`         | `SHARD_BITS`         | `2`            | 0..12; `0` = valid single-group configuration    |
 | `-joined-groups`      | `JOINED_GROUPS`      | `""`           | comma list of indices (hex/dec), or `all`        |
 | `-bitmap`             | `BITMAP`             | `auto`         | `auto`/`list`/`bitmap`                           |
 | `-role-hint`          | `ROLE_HINT`          | `generic`      | proxy/listener/retry-endpoint/producer/...       |
@@ -62,6 +62,8 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 | `-otlp-endpoint`      | `OTLP_ENDPOINT`      | `""`           | optional OTLP gRPC endpoint                      |
 | `-otlp-interval`      | `OTLP_INTERVAL`      | `15s`          |                                                  |
 | `-debug`              | `DEBUG`              | `false`        | verbose logging                                  |
+
+Common flags only — full reference incl. `-pilot-only`, `-successor-*`, `-domain`, `-instance-id`, and the logging/tracing flags: [docs/configuration.md](docs/configuration.md).
 
 ## Observability
 
