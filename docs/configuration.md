@@ -43,7 +43,7 @@ to compute their `(S,G)` data-plane joins.
 | `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`   | DNS re-resolve interval. Last-good AAAA set is retained on transient refresh failures so brief DNS outages don't empty the manifest source payload. |
 
 The shard-manifest pod's own source IPv6 is what receivers pass to
-`-ssm-bootstrap-manifest` (helm: `listener.ssmBootstrap.manifest`) to
+`-ssm-bootstrap-manifest` (helm: `config.ssmBootstrap.manifest`) to
 `(S,G)`-join the manifest group under Posture C. Distinct IPv6 per
 replica is required; use Multus + deterministic IPAM (Whereabouts) for
 stable per-pod addressing.
