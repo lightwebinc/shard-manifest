@@ -8,7 +8,7 @@
 # The default ENTRYPOINT runs the daemon. Override with --entrypoint when
 # invoking manifest-emit from kubectl/helm.
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /src
 
