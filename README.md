@@ -107,7 +107,7 @@ consumers MAY evict the corresponding registry entry immediately.
 ├── docs/                   # architecture + configuration docs
 ├── Dockerfile
 ├── Makefile
-└── .github/workflows/{ci,image-publish,release,codeql}.yml
+└── .github/workflows/{ci,image-publish,release,codeql,vuln}.yml
 ```
 
 ## License
