@@ -10,9 +10,9 @@ emits BRC-139 ShardManifest datagrams.
 +-------------------+                 +----------------------+
 |  configuration    |                 |  IPv6 multicast      |
 |  (flags / env)    |                 |  beacon group(s):    |
-+--------+----------+                 |  FF05::B:FFFD        |
++--------+----------+                 |  FF05/FF35::B:FFFD   |
          |                            |  FF08::B:FFFD        |
-         v                            |  FF0E::B:FFFD        |
+         v                            |  FF0E/FF3E::B:FFFD   |
 +--------+----------+                 +----------+-----------+
 |   config.Load()   |                            ^
 +--------+----------+                            |
@@ -44,11 +44,22 @@ on demand.
 
 ### `sender` — encode + emit loop
 Builds an in-memory `frame.ShardManifest`, calls `frame.EncodeShardManifest`,
-and writes the resulting datagram to one UDP socket per configured scope
-(each socket dialed to the corresponding beacon address). Sockets force the
+and writes the resulting datagram to one UDP socket per destination (each
+socket dialed to the corresponding beacon address). Sockets force the
 egress interface via `IPV6_MULTICAST_IF`. The send loop ticks at
 `AnnounceInterval` ± 10 % jitter; on `ctx.Done()` it emits one final
 manifest with `Flags.Shutdown=1`.
+
+The destinations come from `Config.ControlGroupDestPrefixes`, which derives
+the `0xFFFD` control-group prefix from `-manifest-scope` **and**
+`-source-mode` per BRC-126/BRC-129 — under SSM that is the source-specific
+`FF3x` form, not the any-source `FF0x` one. `-control-group-compat` selects
+which is used and is the flag-day switch; its default (`asm-only`) keeps the
+pre-fix wire. See
+[configuration.md](./configuration.md#control-plane-group-address) for the
+rollout order; moving a sender to the source-specific group before every
+consumer has joined it stops discovery silently. The SSM prefix itself comes
+from `shard-common/shard.Prefix`, the same helper the data plane uses.
 
 The sender chooses encoding form (list vs bitmap) per `cfg.Encoding`:
 

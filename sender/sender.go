@@ -52,14 +52,9 @@ func New(cfg *config.Config, rec *metrics.Recorder, instanceID uint32) (*Sender,
 	if err != nil {
 		return nil, fmt.Errorf("primary ipv6: %w", err)
 	}
-	scopes, err := cfg.ScopePrefixes()
+	dests, err := buildDests(cfg)
 	if err != nil {
 		return nil, err
-	}
-	dests := make([]*net.UDPAddr, 0, len(scopes))
-	for _, scope := range scopes {
-		ip := shard.GroupAddr(scope, cfg.MCGroupID, shard.GroupBeacon)
-		dests = append(dests, &net.UDPAddr{IP: ip, Port: cfg.Port})
 	}
 	s := &Sender{
 		cfg:        cfg,
@@ -78,6 +73,31 @@ func New(cfg *config.Config, rec *metrics.Recorder, instanceID uint32) (*Sender,
 		}
 	}
 	return s, nil
+}
+
+// buildDests resolves the multicast destinations this announcer sends each
+// manifest to.
+//
+// BRC-126 §Beacon Scopes / BRC-129 §Source Mode and Address Range: the
+// 0xFFFD control group takes the source-specific FF3x prefix under SSM
+// (FF35::B:FFFD site, FF3E::B:FFFD global), so the destination is a
+// function of -source-mode as well as -manifest-scope. Deriving it from the
+// scope alone — which is what this used to do — put manifests on
+// FF05::B:FFFD on an SSM fabric, outside the ff35::/16 range such a fabric
+// forwards. -control-group-compat selects which; its default ("asm-only")
+// keeps the pre-fix wire so an un-upgraded consumer still reaches pilot
+// quorum. See config/controlgroup.go for the rollout order.
+func buildDests(cfg *config.Config) ([]*net.UDPAddr, error) {
+	prefixes, err := cfg.ControlGroupDestPrefixes()
+	if err != nil {
+		return nil, err
+	}
+	dests := make([]*net.UDPAddr, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		ip := shard.GroupAddr(prefix, cfg.MCGroupID, shard.GroupBeacon)
+		dests = append(dests, &net.UDPAddr{IP: ip, Port: cfg.Port})
+	}
+	return dests, nil
 }
 
 // onPublishersChange caches the current resolved set as [][16]byte so
@@ -136,11 +156,21 @@ func (s *Sender) Run(ctx context.Context) error {
 		}
 	}()
 
+	// The destination list is logged in full, not just counted: on the
+	// BRC-126/129 flag day "which group am I announcing to" is the question
+	// an operator has to answer from the logs, because landing on the wrong
+	// one produces no error at either end.
+	dests := make([]string, 0, len(s.dests))
+	for _, d := range s.dests {
+		dests = append(dests, d.String())
+	}
 	s.log.Info("sender started",
 		"interval", s.cfg.AnnounceInterval,
 		"ttl", s.cfg.TTL,
 		"shard_bits", s.cfg.ShardBits,
-		"groups", len(s.dests),
+		"groups", dests,
+		"control_group_compat", s.cfg.ControlGroupCompat,
+		"source_mode", s.cfg.SourceMode,
 		"iface", s.iface.Name,
 		"src", s.srcIPv6.String(),
 	)

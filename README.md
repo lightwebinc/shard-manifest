@@ -50,6 +50,7 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 | `-generation-id`      | `GENERATION_ID`      | zero UUID      | 16-byte hex; bump when ShardBits changes         |
 | `-authoritative`      | `AUTHORITATIVE`      | `false`        | sets Flags.Authoritative                         |
 | `-manifest-scope`     | `MANIFEST_SCOPE`     | `site`         | comma list of `link,site,org,global`             |
+| `-control-group-compat` | `CONTROL_GROUP_COMPAT` | `asm-only` | `asm-only`/`both`/`derived`: which prefix the `0xFFFD` control group takes. Under SSM BRC-126/129 require `FF3x` (`FF35::B:FFFD` site). Flag day — see [docs/configuration.md](docs/configuration.md#control-plane-group-address). |
 | `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`         |                                                  |
 | `-ttl`                | `TTL`                | `0s`           | Go duration (e.g. `900s`); wire encodes whole seconds; 0 = consumer default (3× interval) |
 | `-port`               | `PORT`               | `9001`         | UDP destination port                             |

@@ -22,8 +22,85 @@ when neither is set.
 | ------------------- | --------------- | ----------- | -------------------------------------------------------------------- |
 | `-iface`            | `IFACE`         | (auto)      | Egress interface for multicast send. When unset, the first non-loopback interface with a global IPv6 address is used. |
 | `-port`             | `PORT`          | `9001`      | UDP destination port.                                                |
-| `-manifest-scope`   | `MANIFEST_SCOPE`| `site`      | Comma list of scopes: `link`, `site`, `org`, `global`. One datagram is sent per scope per tick. |
+| `-manifest-scope`   | `MANIFEST_SCOPE`| `site`      | Comma list of scopes: `link`, `site`, `org`, `global`. One datagram is sent per destination per tick. |
+| `-control-group-compat` | `CONTROL_GROUP_COMPAT` | `asm-only` | Which prefix the `0xFFFD` control group takes: `asm-only` \| `both` \| `derived`. See [Control-plane group address](#control-plane-group-address). |
 | `-mc-group-id`      | `MC_GROUP_ID`   | `0x000B`    | 16-bit IANA multicast group-id occupying bytes [12:14] of the IPv6 group address. |
+
+## Control-plane group address
+
+Manifests are announced to the BRC-129 control group at index `0xFFFD` — the
+same group address the BRC-126 ADVERT beacon uses, on a different UDP port
+(`-port`, default 9001, vs the beacon's 9300).
+
+Per BRC-126 §Beacon Scopes and BRC-129 §Source Mode and Address Range that
+address is a function of the **source mode** as well as the scope: under SSM
+the control-plane groups take the source-specific `FF3x` prefix, exactly as
+the data-plane shard groups do.
+
+| `-manifest-scope` | ASM group      | SSM group      |
+| ----------------- | -------------- | -------------- |
+| `link`            | `FF02::B:FFFD` | —              |
+| `site`            | `FF05::B:FFFD` | `FF35::B:FFFD` |
+| `org`             | `FF08::B:FFFD` | —              |
+| `global`          | `FF0E::B:FFFD` | `FF3E::B:FFFD` |
+
+BRC-129 tables an SSM control group at site and global scope only, so `link`
+and `org` are ASM-only. With `-control-group-compat=derived` — an explicit
+request for the conformant address — combining either with
+`-source-mode=ssm` is a startup error rather than a silent fall back to
+`FF0x`. With `asm-only` or `both` they keep working exactly as today (`both`
+simply has no second form to add), so a binary upgrade at default settings
+can never fail to start.
+
+### `-control-group-compat` / `CONTROL_GROUP_COMPAT` (default: `asm-only`)
+
+| Value | Announces to |
+|-------|--------------|
+| `asm-only` (default) | Always the any-source `FF0x` form, ignoring `-source-mode`. Pre-fix behaviour. |
+| `both` | Both the `FF0x` form and the `-source-mode`-derived form where one exists (one datagram to each per tick, per scope). |
+| `derived` | The `-source-mode`-derived form only: `FF3x` under `-source-mode=ssm`. BRC-126/129 conformant. |
+
+Under `-source-mode=asm` all three collapse to the same `FF0x` prefixes, so
+the flag does nothing in an ASM deployment.
+
+**This is a flag day.** Releases before this one derived the destination
+from `-manifest-scope` alone and always produced the any-source prefix, even
+under `-source-mode=ssm`. A consumer joined to `FF35::B:FFFD` sees nothing
+from an announcer still sending to `FF05::B:FFFD`, and a manifest that lands
+on the wrong group raises no error anywhere: the symptom is a consumer that
+never reaches pilot quorum however many announcers are running.
+
+The default is `asm-only` precisely so that upgrading announcers is safe on
+its own: the binary changes, the wire does not.
+
+**Rollout order** — the other sender is `retry-endpoint`; the receivers are
+`shard-listener` and `shard-proxy`:
+
+1. Roll every **receiver** (shard-listener, shard-proxy). Their default is
+   `both`, so they join the legacy and the conformant group together.
+2. Roll every **sender** (retry-endpoint, shard-manifest). Default
+   `asm-only`; the wire does not move.
+3. One converge sets the **senders** to `derived`. Manifests move to
+   `FF3x`, which every receiver from step 1 already joined.
+4. After a soak, one converge sets the **receivers** to `derived` to drop
+   the legacy join.
+
+Setting this announcer to `derived` before step 1 has covered every consumer
+is the one ordering that silently strands a peer. `both` is the escape hatch
+for a fleet that is knowingly mixed and does not want a second converge.
+
+Under `-source-mode=ssm` a fabric's multicast routes and PIM/smcroute group
+ranges are usually derived from the source mode too, and so cover
+`ff35::/16` and `ff3e::/16` but not `ff05::/16`. The legacy leg of `both`
+therefore reaches only same-segment consumers on such a fabric — which is
+all it reached before this fix as well. Check that anything keyed on the
+group prefix rather than on `ff00::/8` — multicast routes, PIM/smcroute
+group ranges, MLD snooping filters, narrowed firewall rules — covers the SSM
+block before moving off `asm-only`.
+
+Note that this changes the destination address only. The manifest wire
+format, `Flags.SourceModeSSM` and the `Flags.SourcesValid` payload are
+untouched.
 
 ## SSM (RFC 4607)
 
@@ -38,7 +115,7 @@ to compute their `(S,G)` data-plane joins.
 
 | Flag                  | Env                  | Default | Description                                                                                                                                          |
 | --------------------- | -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-source-mode`        | `SOURCE_MODE`        | `asm`   | When `ssm`, sets `Flags.SourceModeSSM` on every manifest and REQUIRES `-publishers` to be non-empty.                                                  |
+| `-source-mode`        | `SOURCE_MODE`        | `asm`   | When `ssm`, sets `Flags.SourceModeSSM` on every manifest and REQUIRES `-publishers` to be non-empty. Also selects the control-group prefix — see [Control-plane group address](#control-plane-group-address). |
 | `-publishers`         | `PUBLISHERS`         | `""`    | CSV of data-plane publisher addresses (IPv6 literals or DNS names; a headless-Service name is the expected production form). Resolved via `shard-common/bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union. |
 | `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`   | DNS re-resolve interval. Last-good AAAA set is retained on transient refresh failures so brief DNS outages don't empty the manifest source payload. |
 

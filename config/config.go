@@ -85,6 +85,14 @@ type Config struct {
 	Publishers        []string
 	PublishersRefresh time.Duration
 
+	// ControlGroupCompat selects which multicast prefix the control-plane
+	// group (BRC-129 index 0xFFFD, shared with the BRC-126 beacon) is
+	// derived from: "asm-only" | "both" | "derived". See
+	// config/controlgroup.go for the rollout order. Senders default to
+	// "asm-only" so upgrading this binary never moves the wire out from
+	// under an un-upgraded consumer.
+	ControlGroupCompat string
+
 	// PilotOnly sets Flags.PilotOnly on emitted manifests, marking this
 	// announcer as a pilot/assignment broadcast: groups payload describes
 	// desired fleet state, not the announcer's own joins. Implies
@@ -243,24 +251,24 @@ func parseDomainSpec(spec string) (DomainConfig, error) {
 	return d, nil
 }
 
-// ScopePrefixes returns the active scope prefix bytes (e.g. 0xFF05) parsed
-// from ManifestScope. Order is preserved.
+// ScopePrefixes returns the any-source scope prefix bytes (e.g. 0xFF05)
+// parsed from ManifestScope. Order is preserved.
+//
+// This is the raw scope-table lookup and is NOT the send destination: under
+// SSM the control-plane group takes the FF3x prefix per BRC-126/BRC-129.
+// Use [Config.ControlGroupDestPrefixes] for that.
 func (c *Config) ScopePrefixes() ([]uint16, error) {
-	parts := strings.Split(c.ManifestScope, ",")
-	out := make([]uint16, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
+	names, err := c.scopeNames()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uint16, 0, len(names))
+	for _, p := range names {
 		v, ok := Scopes[p]
 		if !ok {
 			return nil, fmt.Errorf("invalid manifest-scope %q (allowed: link,site,org,global)", p)
 		}
 		out = append(out, v)
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("manifest-scope is empty")
 	}
 	return out, nil
 }
@@ -273,16 +281,22 @@ func Load() (*Config, error) {
 	fs := flag.NewFlagSet("shard-manifest", flag.ContinueOnError)
 
 	var (
-		shardBits           = fs.Uint("shard-bits", envUint("SHARD_BITS", 2), "shard bits (0..12)")
-		joinedGroups        = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
-		encodingFlag        = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
-		roleHint            = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
-		genID               = fs.String("generation-id", os.Getenv("GENERATION_ID"), "16-byte hex (with or without dashes); empty = zero UUID")
-		authoritative       = fs.Bool("authoritative", envBool("AUTHORITATIVE", false), "set Flags.Authoritative")
-		instanceID          = fs.String("instance-id", os.Getenv("INSTANCE_ID"), "service.instance.id (defaults to hostname)")
-		iface               = fs.String("iface", os.Getenv("IFACE"), "outgoing multicast interface (defaults to first non-loopback)")
-		port                = fs.Int("port", envInt("PORT", 9001), "destination UDP port")
-		manifestScope       = fs.String("manifest-scope", envOrDefault("MANIFEST_SCOPE", "site"), "comma list of scopes: link,site,org,global")
+		shardBits          = fs.Uint("shard-bits", envUint("SHARD_BITS", 2), "shard bits (0..12)")
+		joinedGroups       = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
+		encodingFlag       = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
+		roleHint           = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
+		genID              = fs.String("generation-id", os.Getenv("GENERATION_ID"), "16-byte hex (with or without dashes); empty = zero UUID")
+		authoritative      = fs.Bool("authoritative", envBool("AUTHORITATIVE", false), "set Flags.Authoritative")
+		instanceID         = fs.String("instance-id", os.Getenv("INSTANCE_ID"), "service.instance.id (defaults to hostname)")
+		iface              = fs.String("iface", os.Getenv("IFACE"), "outgoing multicast interface (defaults to first non-loopback)")
+		port               = fs.Int("port", envInt("PORT", 9001), "destination UDP port")
+		manifestScope      = fs.String("manifest-scope", envOrDefault("MANIFEST_SCOPE", "site"), "comma list of scopes: link,site,org,global")
+		controlGroupCompat = fs.String("control-group-compat", envOrDefault("CONTROL_GROUP_COMPAT", ControlGroupASMOnly),
+			"prefix for the BRC-129 0xFFFD control group this announcer sends to: "+
+				"'asm-only' (default, sender-safe) = always the any-source FF0x form; "+
+				"'both' = announce to FF0x and the -source-mode-derived FF3x; "+
+				"'derived' = BRC-126/129 conformant, FF3x under -source-mode=ssm. "+
+				"Move senders off 'asm-only' only after every consumer runs 'both' or 'derived'")
 		mcGroupID           = fs.String("mc-group-id", envOrDefault("MC_GROUP_ID", "0x000B"), "IANA multicast group-id (16 bits)")
 		announceInterval    = fs.Duration("announce-interval", envDuration("ANNOUNCE_INTERVAL", 300*time.Second), "send period")
 		ttl                 = fs.Duration("ttl", envDuration("TTL", 0), "TTL on the wire (0 = consumer default)")
@@ -403,6 +417,23 @@ func Load() (*Config, error) {
 		c.SourceMode = "ssm"
 	default:
 		return nil, fmt.Errorf("invalid source-mode %q (asm|ssm)", *sourceMode)
+	}
+
+	// Control-plane group prefix (BRC-126 §Beacon Scopes / BRC-129 §Source
+	// Mode and Address Range). See config/controlgroup.go for the flag-day
+	// rollout order; the sender default is "asm-only" so upgrading this
+	// binary alone can never strand an un-upgraded consumer.
+	c.ControlGroupCompat = strings.ToLower(strings.TrimSpace(*controlGroupCompat))
+	switch c.ControlGroupCompat {
+	case ControlGroupASMOnly, ControlGroupBoth, ControlGroupDerived:
+	default:
+		return nil, fmt.Errorf("invalid -control-group-compat %q (%s)",
+			c.ControlGroupCompat, strings.Join(ControlGroupCompatValues, "|"))
+	}
+	// Fail closed at load: a manifest sent to the wrong group is silence,
+	// not an error, at every consumer.
+	if _, err := c.ControlGroupDestPrefixes(); err != nil {
+		return nil, fmt.Errorf("manifest group: %w", err)
 	}
 	if *publishers != "" {
 		parts := strings.Split(*publishers, ",")
