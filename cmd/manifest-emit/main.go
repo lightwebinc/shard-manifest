@@ -10,10 +10,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/lightwebinc/shard-common/logging"
+
 	"github.com/lightwebinc/shard-manifest/config"
 	"github.com/lightwebinc/shard-manifest/metrics"
 	"github.com/lightwebinc/shard-manifest/sender"
 )
+
+// Version is set via -ldflags at build time (see the Makefile's build-cli).
+var Version = "dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -21,7 +26,22 @@ func main() {
 		slog.Error("config", "err", err)
 		os.Exit(1)
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	// Same logging contract as the daemon: identity attributes on every line
+	// and the operator's -log-format/-log-level honoured. A one-shot emitter
+	// that logs in its own format is unjoinable with the daemon's lines for
+	// the same fabric.
+	logLevel := logging.ParseLevel(cfg.LogLevel)
+	if cfg.Debug {
+		logLevel = slog.LevelDebug
+	}
+	logging.Init(logging.Options{
+		Service:    metrics.ServiceName,
+		InstanceID: cfg.InstanceID,
+		Version:    Version,
+		Level:      logLevel,
+		Format:     logging.ParseFormat(cfg.LogFormat),
+	})
 
 	rec, err := metrics.New(cfg.InstanceID, "", 0)
 	if err != nil {

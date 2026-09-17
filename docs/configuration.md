@@ -86,7 +86,7 @@ union-joins the active + successor group sets. The pilot side floor is
 | Flag                            | Env                          | Default | Description                                                                                                                                  |
 | ------------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-successor-generation-id`      | `SUCCESSOR_GENERATION_ID`    | `""`    | 16-byte hex; non-empty triggers Successor-block emission. All other `-successor-*` flags below are required when set.                         |
-| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST satisfy `shard-bits ± 1` per BRC-139.                                                                   |
+| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST be within ±1 of `-shard-bits` per BRC-139 — equal is allowed (a generation may turn over without a width change). |
 | `-successor-source-mode`        | `SUCCESSOR_SOURCE_MODE`      | `""`    | `asm` / `ssm`; empty inherits `-source-mode`.                                                                                                  |
 | `-successor-transition-epoch`   | `SUCCESSOR_TRANSITION_EPOCH` | `0`     | Unix seconds at which the successor becomes the sole active generation. MUST be `≥ now + 2 × AnnounceInterval`; the daemon rejects otherwise. |
 

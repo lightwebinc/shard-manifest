@@ -175,6 +175,32 @@ func TestLoad_SuccessorValid(t *testing.T) {
 	}
 }
 
+// The bound is |successor − active| ≤ 1, which INCLUDES equality: a
+// generation can turn over (new GenerationID) without a width change. The
+// flag help says so; this pins the code the help describes.
+func TestLoad_SuccessorEqualShardBitsAllowed(t *testing.T) {
+	gen := "0123456789abcdef0123456789abcdef"
+	c, err := loadWithArgs(t,
+		"-shard-bits=2",
+		"-successor-generation-id="+gen,
+		"-successor-shard-bits=2",
+		"-successor-transition-epoch=9999999999")
+	if err != nil {
+		t.Fatalf("equal successor shard-bits must be accepted: %v", err)
+	}
+	if c.Successor == nil || c.Successor.ShardBits != 2 {
+		t.Fatalf("Successor = %+v, want ShardBits 2", c.Successor)
+	}
+	// Two bits away is still rejected.
+	if _, err := loadWithArgs(t,
+		"-shard-bits=2",
+		"-successor-generation-id="+gen,
+		"-successor-shard-bits=4",
+		"-successor-transition-epoch=9999999999"); err == nil {
+		t.Error("|successor - active| = 2 should error")
+	}
+}
+
 func TestResolveIface_Explicit(t *testing.T) {
 	c := &Config{Iface: loopbackIface(t)}
 	ifc, err := c.ResolveIface()
