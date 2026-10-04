@@ -15,4 +15,4 @@ permissions:
 
 jobs:
   ci:
-    uses: lightwebinc/ci/.github/workflows/go-dagger.yml@3f438e60ade351107a3d1601955ebbf34de8caf1 # v0.1.0
+    uses: lightwebinc/ci/.github/workflows/go-dagger.yml@6477feb1c5a021d27e88d6891101095a1178cde9 # main
