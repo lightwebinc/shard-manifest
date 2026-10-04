@@ -3,7 +3,7 @@ module github.com/lightwebinc/shard-manifest
 go 1.26.2
 
 require (
-	github.com/lightwebinc/shard-common v0.18.0
+	github.com/lightwebinc/shard-common v0.22.0
 	github.com/prometheus/client_golang v1.24.1
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
