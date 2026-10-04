@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: lightwebinc/ci/.github/workflows/image-publish.yml@6477feb1c5a021d27e88d6891101095a1178cde9 # main
+    uses: lightwebinc/ci/.github/workflows/image-publish.yml@192a5b5169fd635e191104c14631525bbcd5ec60 # v0.3.0
     with:
       tag: ${{ inputs.tag }}
       dry-run: ${{ inputs.dry-run }}

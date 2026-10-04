@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   vuln:
-    uses: lightwebinc/ci/.github/workflows/go-dagger.yml@6477feb1c5a021d27e88d6891101095a1178cde9 # main
+    uses: lightwebinc/ci/.github/workflows/go-dagger.yml@192a5b5169fd635e191104c14631525bbcd5ec60 # v0.3.0
     with:
       target: ci-vuln
       common-ref: main
