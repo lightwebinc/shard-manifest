@@ -17,4 +17,4 @@ jobs:
       security-events: write
       actions: read
       contents: read
-    uses: lightwebinc/ci/.github/workflows/codeql-go.yml@bfcf31c675b8206453c90497534a72886933f0a9 # main
+    uses: lightwebinc/ci/.github/workflows/codeql-go.yml@3f438e60ade351107a3d1601955ebbf34de8caf1 # v0.1.0
