@@ -1,11 +1,8 @@
 name: CI
 
 on:
+  # main only: a branch with a PR is covered by the pull_request run.
   push:
-    # main only: a branch that has a PR is already covered by the
-    # pull_request run, and a bare-branch push ran the whole matrix a
-    # second time per PR (github.ref differs between the two events, so
-    # the concurrency group cannot dedupe them).
     branches: [main]
   pull_request:
 
@@ -13,42 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    name: ci (dagger)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: shard-manifest
-
-      - name: Resolve shard-common ref
-        id: common_ref
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          if [ -n "$BRANCH" ] && gh api "repos/lightwebinc/shard-common/branches/$BRANCH" >/dev/null 2>&1; then
-            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
-            echo "Using shard-common@$BRANCH (matching feature branch found)"
-          else
-            echo "ref=main" >> "$GITHUB_OUTPUT"
-            echo "Using shard-common@main (no matching feature branch)"
-          fi
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: lightwebinc/shard-common
-          ref: ${{ steps.common_ref.outputs.ref }}
-          path: shard-common
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: shard-manifest/ci/go.mod
-          cache: false
-
-      - name: Run Dagger pipeline
-        working-directory: shard-manifest
-        env:
-          GOWORK: "off"
-        run: make ci
+    uses: lightwebinc/ci/.github/workflows/go-dagger.yml@bfcf31c675b8206453c90497534a72886933f0a9 # main
