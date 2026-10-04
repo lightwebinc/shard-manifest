@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	dagger.io/dagger v0.21.9 // indirect
-	github.com/lightwebinc/ci v0.0.0-20261004140728-bfcf31c675b8
+	github.com/lightwebinc/ci v0.1.0
 )
 
 require (
