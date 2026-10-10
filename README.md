@@ -38,7 +38,7 @@ make build-cli
 
 All flags can be supplied via environment variables (UPPER_SNAKE_CASE).
 See [docs/configuration.md](docs/configuration.md) for the full reference, and the
-[Unified Logging Plan](https://github.com/lightwebinc/shard-common/blob/main/docs/logging.md)
+[Unified Component Logging](https://github.com/lightwebinc/shard-common/blob/main/docs/logging.md)
 for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, and runtime `/loglevel`.
 
 | Flag                  | Env                  | Default        | Notes                                            |
