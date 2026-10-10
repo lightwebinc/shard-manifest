@@ -190,6 +190,29 @@ flags so the manifest reverts to single-generation steady state.
 | `-trace-sampling`   | `TRACE_SAMPLING`| `0`           | Trace head sampling ratio `0`–`1` (`0` = no-op tracer; exports via `-otlp-endpoint`). Startup emits a one-shot `host.inventory` event + `bsm_host_info` gauge. |
 | `-debug`            | `DEBUG`         | `false`       | Deprecated alias for `-log-level=debug`.               |
 
+## Metrics
+
+- `GET /metrics` — Prometheus exposition (default `:9091`).
+- `GET /healthz` — process-alive probe (always 200).
+- `GET /readyz` — 200 once a manifest has been sent in the last
+  `2 × AnnounceInterval`; 503 when starting, draining, or stale.
+
+| Name                              | Type      | Labels      | Notes                                            |
+| --------------------------------- | --------- | ----------- | ------------------------------------------------ |
+| `bsm_announcements_sent_total`    | counter   | —           | successful sends                                 |
+| `bsm_announcement_bytes_total`    | counter   | —           | total bytes successfully sent                    |
+| `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`write`                         |
+| `bsm_shard_bits`                  | gauge     | —           | currently advertised value                       |
+| `bsm_joined_groups`               | gauge     | —           | currently advertised join count                  |
+| `bsm_publisher_count`             | gauge     | —           | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
+| `bsm_last_send_unixtime`          | gauge     | —           | last successful send                             |
+| `bsm_build_info`                  | gauge     | `version`,`instance` | always 1                                |
+| `bsm_host_info`                   | gauge     | `hostname`,`kernel_version`,`cpu_logical`,`mem_bytes`,`rmem_max`,`nic`,`speed_mbps`,`version` | static host facts (always 1); join with `host.inventory` log |
+
+The daemon also serves runtime collectors (`go_*`, `process_*`) on the same
+endpoint.
+
+
 ## Behaviour notes
 
 - **`shard-bits` = 0** — single-group configuration. `joined-groups` may be

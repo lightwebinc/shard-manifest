@@ -12,8 +12,8 @@ configurable scope; **no proxy, no retransmission, no listener-side ACK**.
 
 The service is purely informational: it does not subscribe to or interpret
 data-plane shard groups. Its purpose is to make the network's sharding
-configuration observable, detect divergence, and (in future revisions)
-support automated, rate-limited shard-bit shifts.
+configuration observable, detect divergence, and announce live re-sharding
+(BRC-139 Successor block; see [docs/configuration.md](docs/configuration.md#live-re-sharding-brc-139-successor-block)).
 
 ## Quick start
 
@@ -41,76 +41,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference, and t
 [Unified Component Logging](https://github.com/lightwebinc/shard-common/blob/main/docs/logging.md)
 for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, and runtime `/loglevel`.
 
-| Flag                  | Env                  | Default        | Notes                                            |
-| --------------------- | -------------------- | -------------- | ------------------------------------------------ |
-| `-shard-bits`         | `SHARD_BITS`         | `2`            | 0..12; `0` = valid single-group configuration    |
-| `-joined-groups`      | `JOINED_GROUPS`      | `""`           | comma list of indices (hex/dec), or `all`        |
-| `-bitmap`             | `BITMAP`             | `auto`         | `auto`/`list`/`bitmap`                           |
-| `-role-hint`          | `ROLE_HINT`          | `generic`      | proxy/listener/retry-endpoint/producer/...       |
-| `-generation-id`      | `GENERATION_ID`      | zero UUID      | 16-byte hex; bump when ShardBits changes         |
-| `-authoritative`      | `AUTHORITATIVE`      | `false`        | sets Flags.Authoritative                         |
-| `-manifest-scope`     | `MANIFEST_SCOPE`     | `site`         | comma list of `link,site,org,global`             |
-| `-control-group-compat` | `CONTROL_GROUP_COMPAT` | `asm-only` | `asm-only`/`both`/`derived`: which prefix the `0xFFFD` control group takes. Under SSM BRC-126/129 require `FF3x` (`FF35::B:FFFD` site). Flag day — see [docs/configuration.md](docs/configuration.md#control-plane-group-address). |
-| `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`         |                                                  |
-| `-ttl`                | `TTL`                | `0s`           | Go duration (e.g. `900s`); wire encodes whole seconds; 0 = consumer default (3× interval) |
-| `-port`               | `PORT`               | `9001`         | UDP destination port                             |
-| `-iface`              | `IFACE`              | (auto-pick)    | egress interface                                 |
-| `-mc-group-id`        | `MC_GROUP_ID`        | `0x000B`       | IANA group-id                                    |
-| `-source-mode`        | `SOURCE_MODE`        | `asm`          | `asm` or `ssm`. SSM sets `Flags.SourceModeSSM` on every manifest and requires `-publishers`. See [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm). |
-| `-publishers`         | `PUBLISHERS`         | `""`           | CSV of data-plane publisher IPv6 literals or DNS names. Resolved via `bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union (BRC-139 bit 4). |
-| `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`          | DNS re-resolve interval; last-good set retained on transient failures. |
-| `-metrics-addr`       | `METRICS_ADDR`       | `[::]:9091`    | metrics + health HTTP listener                   |
-| `-otlp-endpoint`      | `OTLP_ENDPOINT`      | `""`           | optional OTLP gRPC endpoint                      |
-| `-otlp-interval`      | `OTLP_INTERVAL`      | `15s`          |                                                  |
-| `-debug`              | `DEBUG`              | `false`        | verbose logging                                  |
-
-Common flags only — full reference incl. `-pilot-only`, `-successor-*`, `-domain`, `-instance-id`, and the logging/tracing flags: [docs/configuration.md](docs/configuration.md).
-
 ## Observability
 
-- `GET /metrics` — Prometheus exposition (default `:9091`).
-- `GET /healthz` — process-alive probe (always 200).
-- `GET /readyz` — 200 once a manifest has been sent in the last
-  `2 × AnnounceInterval`; 503 when starting, draining, or stale.
+`/metrics`, `/healthz`, `/readyz` on `-metrics-addr` (default `:9091`). Endpoints and `bsm_` metric series: [docs/configuration.md](docs/configuration.md#metrics).
 
-Metric series:
-
-| Name                              | Type      | Labels      | Notes                                            |
-| --------------------------------- | --------- | ----------- | ------------------------------------------------ |
-| `bsm_announcements_sent_total`    | counter   | —           | successful sends                                 |
-| `bsm_announcement_bytes_total`    | counter   | —           | total bytes successfully sent                    |
-| `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`write`                         |
-| `bsm_shard_bits`                  | gauge     | —           | currently advertised value                       |
-| `bsm_joined_groups`               | gauge     | —           | currently advertised join count                  |
-| `bsm_publisher_count`             | gauge     | —           | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
-| `bsm_last_send_unixtime`          | gauge     | —           | last successful send                             |
-| `bsm_build_info`                  | gauge     | `version`,`instance` | always 1                                |
-| `bsm_host_info`                   | gauge     | `hostname`,`kernel_version`,`cpu_logical`,`mem_bytes`,`rmem_max`,`nic`,`speed_mbps`,`version` | static host facts (always 1); join with `host.inventory` log |
-
-The daemon also serves runtime collectors (`go_*`, `process_*`) on the same
-endpoint.
-
-## Graceful shutdown
-
-On `SIGTERM` the daemon emits one final manifest with `Flags.Shutdown=1` so
-consumers MAY evict the corresponding registry entry immediately.
-
-## Layout
-
-```
-.
-├── main.go                 # daemon entrypoint
-├── cmd/manifest-emit/      # one-shot CLI
-├── config/                 # flag/env loader + tests
-├── sender/                 # encode + emit loop + tests
-├── metrics/                # OTel + Prometheus + healthz/readyz
-├── ci/                     # Dagger CI driver
-├── docs/                   # architecture + configuration docs
-├── Dockerfile
-├── Makefile
-└── .github/workflows/{ci,image-publish,release,codeql,vuln}.yml
-```
-
-## License
-
-Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
