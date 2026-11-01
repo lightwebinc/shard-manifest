@@ -82,11 +82,10 @@ func New(cfg *config.Config, rec *metrics.Recorder, instanceID uint32) (*Sender,
 // 0xFFFD control group takes the source-specific FF3x prefix under SSM
 // (FF35::B:FFFD site, FF3E::B:FFFD global), so the destination is a
 // function of -source-mode as well as -manifest-scope. Deriving it from the
-// scope alone — which is what this used to do — put manifests on
-// FF05::B:FFFD on an SSM fabric, outside the ff35::/16 range such a fabric
-// forwards. -control-group-compat selects which; its default ("asm-only")
-// keeps the pre-fix wire so an un-upgraded consumer still reaches pilot
-// quorum. See config/controlgroup.go for the rollout order.
+// scope alone would put manifests on FF05::B:FFFD on an SSM fabric, outside
+// the ff35::/16 range such a fabric forwards. -control-group-compat selects
+// which; its default ("asm-only") keeps the any-source wire so a consumer
+// joined only to FF0x still reaches pilot quorum. See config/controlgroup.go for the rollout order.
 func buildDests(cfg *config.Config) ([]*net.UDPAddr, error) {
 	prefixes, err := cfg.ControlGroupDestPrefixes()
 	if err != nil {

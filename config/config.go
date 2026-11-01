@@ -107,7 +107,7 @@ type Config struct {
 
 	// Domains carries the BRC-148 per-plane descriptors announced in the
 	// manifest's Domains section (repeatable -domain flag / DOMAINS env).
-	// Per-domain successors are a follow-up; the wire codec supports them.
+	// Per-domain successors are carried in each entry's succ* tokens.
 	Domains []DomainConfig
 
 	// Observability

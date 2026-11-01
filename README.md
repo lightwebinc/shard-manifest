@@ -1,14 +1,14 @@
 # shard-manifest
 
-> Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project — see the main repository for the full architecture, design docs, and BRC specifications.
+> Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project; see the main repository for the full architecture, design docs, and BRC specifications.
 
 `shard-manifest` is a tiny standalone daemon that periodically
 multicasts [BRC-139](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-139-shard-manifest.md)
 ShardManifest datagrams. Each manifest advertises the local participant's
 `shard_bits` configuration, the set of shard group indices it claims to have
 joined, identity, timestamp, TTL, and a `GenerationID`. Manifests are sent
-directly to the IPv6 beacon multicast group (`FF0X::B:FFFD`) at a
-configurable scope; **no proxy, no retransmission, no listener-side ACK**.
+directly to the IPv6 beacon multicast group (`FF0X::B:FFFD`, or `FF3X::B:FFFD`
+under SSM) at a configurable scope; **no proxy, no retransmission, no listener-side ACK**.
 
 The service is purely informational: it does not subscribe to or interpret
 data-plane shard groups. Its purpose is to make the network's sharding
@@ -43,5 +43,5 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 
 ## Observability
 
-`/metrics`, `/healthz`, `/readyz` on `-metrics-addr` (default `:9091`). Endpoints and `bsm_` metric series: [docs/configuration.md](docs/configuration.md#metrics).
+`/metrics`, `/healthz`, `/readyz` on `-metrics-addr` (default `[::]:9091`). Endpoints and `bsm_` metric series: [docs/configuration.md](docs/configuration.md#metrics).
 

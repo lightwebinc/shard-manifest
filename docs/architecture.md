@@ -36,13 +36,13 @@ emits BRC-139 ShardManifest datagrams.
 
 ## Components
 
-### `config` — flag/env loader
+### `config`: flag/env loader
 Parses CLI flags with environment-variable fallbacks. Validates `ShardBits`
 (0..12), parses `JoinedGroups` (or `all`), the `GenerationID` UUID, and the
 manifest scope list. Resolves the egress interface and primary IPv6 address
 on demand.
 
-### `sender` — encode + emit loop
+### `sender`: encode + emit loop
 Builds an in-memory `frame.ShardManifest`, calls `frame.EncodeShardManifest`,
 and writes the resulting datagram to one UDP socket per destination (each
 socket dialed to the corresponding beacon address). Sockets force the
@@ -52,10 +52,10 @@ manifest with `Flags.Shutdown=1`.
 
 The destinations come from `Config.ControlGroupDestPrefixes`, which derives
 the `0xFFFD` control-group prefix from `-manifest-scope` **and**
-`-source-mode` per BRC-126/BRC-129 — under SSM that is the source-specific
+`-source-mode` per BRC-126/BRC-129: under SSM that is the source-specific
 `FF3x` form, not the any-source `FF0x` one. `-control-group-compat` selects
 which is used and is the flag-day switch; its default (`asm-only`) keeps the
-pre-fix wire. See
+any-source wire. See
 [configuration.md](./configuration.md#control-plane-group-address) for the
 rollout order; moving a sender to the source-specific group before every
 consumer has joined it stops discovery silently. The SSM prefix itself comes
@@ -67,13 +67,13 @@ The sender chooses encoding form (list vs bitmap) per `cfg.Encoding`:
 - `list`: forced list form.
 - `bitmap`: forced bitmap form sized `ceil(2^ShardBits / 8)` bytes.
 
-### `metrics` — observability
+### `metrics`: observability
 Wraps an OpenTelemetry `MeterProvider` with a Prometheus exporter (always
 on) and an optional OTLP gRPC exporter. The HTTP server exposes:
 
-- `/metrics` — Prometheus exposition (also includes `go_*`/`process_*`).
-- `/healthz` — always 200.
-- `/readyz` — 200 once a manifest has been sent within
+- `/metrics`: Prometheus exposition (also includes `go_*`/`process_*`).
+- `/healthz`: always 200.
+- `/readyz`: 200 once a manifest has been sent within
   `2 × AnnounceInterval`; 503 otherwise (starting, draining, or stale).
 
 ### `cmd/manifest-emit`
@@ -111,23 +111,23 @@ When `-source-mode=ssm` is set:
 - Consumers union the sources across all currently-valid manifests they
   hold and feed the union into `(S,G)` data-plane joins.
 
-See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm)
-for the full Posture C design.
+See the [Source-Specific Multicast design](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm)
+for the full SSM design.
 
 ## Identity
 
-`InstanceID` is `CRC32c(hostname)` (matching BRC-126 ADVERT) so the same
-identifier is stable across restarts. The source IPv6 in the datagram
-header (`SrcIPv6`) is informational; consumers SHOULD authoritative-key on
-the IPv6 packet header source.
+`InstanceID` is `CRC32c(-instance-id)`, hostname by default (matching BRC-126
+ADVERT), so the same identifier is stable across restarts. The source IPv6
+in the datagram header (`SrcIPv6`) is informational; consumers SHOULD
+authoritative-key on the IPv6 packet header source.
 
 ## Failure modes
 
-- **No global IPv6 address on the egress interface** — startup fails. Set
+- **No global IPv6 address on the egress interface**: startup fails. Set
   `-iface` explicitly or fix node networking.
-- **Multicast send error** — incremented as `bsm_send_errors_total{kind="write"}`;
+- **Multicast send error**: incremented as `bsm_send_errors_total{kind="write"}`;
   the loop continues and retries on the next tick.
-- **Encode error** — extremely unlikely (config is validated upfront);
+- **Encode error**: extremely unlikely (config is validated upfront);
   incremented as `bsm_send_errors_total{kind="encode"}`.
 
 ## Resource footprint

@@ -8,7 +8,7 @@ when neither is set.
 
 | Flag                | Env             | Default     | Description                                                                 |
 | ------------------- | --------------- | ----------- | --------------------------------------------------------------------------- |
-| `-shard-bits`       | `SHARD_BITS`    | `2`         | Number of TxID prefix bits used as the shard group key (0..12). `0` is a valid single-group configuration (see Behaviour notes). |
+| `-shard-bits`       | `SHARD_BITS`    | `2`         | Number of TxID prefix bits used as the shard group key (0..12). `0` is a valid single-group configuration (see Behavior notes). |
 | `-joined-groups`    | `JOINED_GROUPS` | `""`        | Comma list of group indices (decimal or `0x` hex), or `all`, or empty.      |
 | `-bitmap`           | `BITMAP`        | `auto`      | Encoding form: `auto` (list ≤32 entries, else bitmap), `list`, or `bitmap`. |
 | `-role-hint`        | `ROLE_HINT`     | `generic`   | One of `generic`, `proxy`, `listener`, `retry-endpoint`, `producer`, `manifest-only`. Informational. |
@@ -28,7 +28,7 @@ when neither is set.
 
 ## Control-plane group address
 
-Manifests are announced to the BRC-129 control group at index `0xFFFD` — the
+Manifests are announced to the BRC-129 control group at index `0xFFFD`, the
 same group address the BRC-126 ADVERT beacon uses, on a different UDP port
 (`-port`, default 9001, vs the beacon's 9300).
 
@@ -39,41 +39,40 @@ the data-plane shard groups do.
 
 | `-manifest-scope` | ASM group      | SSM group      |
 | ----------------- | -------------- | -------------- |
-| `link`            | `FF02::B:FFFD` | —              |
+| `link`            | `FF02::B:FFFD` | none           |
 | `site`            | `FF05::B:FFFD` | `FF35::B:FFFD` |
-| `org`             | `FF08::B:FFFD` | —              |
+| `org`             | `FF08::B:FFFD` | none           |
 | `global`          | `FF0E::B:FFFD` | `FF3E::B:FFFD` |
 
 BRC-129 tables an SSM control group at site and global scope only, so `link`
-and `org` are ASM-only. With `-control-group-compat=derived` — an explicit
-request for the conformant address — combining either with
+and `org` are ASM-only. With `-control-group-compat=derived` (an explicit
+request for the conformant address), combining either with
 `-source-mode=ssm` is a startup error rather than a silent fall back to
-`FF0x`. With `asm-only` or `both` they keep working exactly as today (`both`
-simply has no second form to add), so a binary upgrade at default settings
-can never fail to start.
+`FF0x`. With `asm-only` or `both` they keep working (`both` simply has no
+second form to add), so a binary upgrade at default settings cannot fail to
+start.
 
 ### `-control-group-compat` / `CONTROL_GROUP_COMPAT` (default: `asm-only`)
 
 | Value | Announces to |
 |-------|--------------|
-| `asm-only` (default) | Always the any-source `FF0x` form, ignoring `-source-mode`. Pre-fix behaviour. |
+| `asm-only` (default) | Always the any-source `FF0x` form, ignoring `-source-mode`. |
 | `both` | Both the `FF0x` form and the `-source-mode`-derived form where one exists (one datagram to each per tick, per scope). |
 | `derived` | The `-source-mode`-derived form only: `FF3x` under `-source-mode=ssm`. BRC-126/129 conformant. |
 
 Under `-source-mode=asm` all three collapse to the same `FF0x` prefixes, so
 the flag does nothing in an ASM deployment.
 
-**This is a flag day.** Releases before this one derived the destination
-from `-manifest-scope` alone and always produced the any-source prefix, even
-under `-source-mode=ssm`. A consumer joined to `FF35::B:FFFD` sees nothing
-from an announcer still sending to `FF05::B:FFFD`, and a manifest that lands
-on the wrong group raises no error anywhere: the symptom is a consumer that
-never reaches pilot quorum however many announcers are running.
+**This is a flag day.** An announcer on `asm-only` sends to the any-source
+prefix even under `-source-mode=ssm`. A consumer joined to `FF35::B:FFFD`
+sees nothing from an announcer sending to `FF05::B:FFFD`, and a manifest that
+lands on the wrong group raises no error anywhere: the symptom is a consumer
+that never reaches pilot quorum however many announcers are running.
 
-The default is `asm-only` precisely so that upgrading announcers is safe on
-its own: the binary changes, the wire does not.
+The default is `asm-only` so that upgrading announcers is safe on its own:
+the binary changes, the wire does not.
 
-**Rollout order** — the other sender is `retry-endpoint`; the receivers are
+**Rollout order.** The other sender is `retry-endpoint`; the receivers are
 `shard-listener` and `shard-proxy`:
 
 1. Roll every **receiver** (shard-listener, shard-proxy). Their default is
@@ -92,11 +91,10 @@ for a fleet that is knowingly mixed and does not want a second converge.
 Under `-source-mode=ssm` a fabric's multicast routes and PIM/smcroute group
 ranges are usually derived from the source mode too, and so cover
 `ff35::/16` and `ff3e::/16` but not `ff05::/16`. The legacy leg of `both`
-therefore reaches only same-segment consumers on such a fabric — which is
-all it reached before this fix as well. Check that anything keyed on the
-group prefix rather than on `ff00::/8` — multicast routes, PIM/smcroute
-group ranges, MLD snooping filters, narrowed firewall rules — covers the SSM
-block before moving off `asm-only`.
+therefore reaches only same-segment consumers on such a fabric. Check that
+anything keyed on the group prefix rather than on `ff00::/8` (multicast
+routes, PIM/smcroute group ranges, MLD snooping filters, narrowed firewall
+rules) covers the SSM block before moving off `asm-only`.
 
 Note that this changes the destination address only. The manifest wire
 format, `Flags.SourceModeSSM` and the `Flags.SourcesValid` payload are
@@ -104,7 +102,7 @@ untouched.
 
 ## SSM (RFC 4607)
 
-See the [SSM Support Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm).
+See the [Source-Specific Multicast design](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#source-specific-multicast-ssm).
 The shard-manifest is the **authoritative publisher source set** for
 downstream SSM consumers: when `-source-mode=ssm`, every emitted
 manifest carries `Flags.SourceModeSSM` (BRC-139 bit 3) and, when
@@ -115,15 +113,15 @@ to compute their `(S,G)` data-plane joins.
 
 | Flag                  | Env                  | Default | Description                                                                                                                                          |
 | --------------------- | -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-source-mode`        | `SOURCE_MODE`        | `asm`   | When `ssm`, sets `Flags.SourceModeSSM` on every manifest and REQUIRES `-publishers` to be non-empty. Also selects the control-group prefix — see [Control-plane group address](#control-plane-group-address). |
+| `-source-mode`        | `SOURCE_MODE`        | `asm`   | When `ssm`, sets `Flags.SourceModeSSM` on every manifest and REQUIRES `-publishers` to be non-empty. Also selects the control-group prefix; see [Control-plane group address](#control-plane-group-address). |
 | `-publishers`         | `PUBLISHERS`         | `""`    | CSV of data-plane publisher addresses (IPv6 literals or DNS names; a headless-Service name is the expected production form). Resolved via `shard-common/bootstrap.Resolver` and emitted as the `Flags.SourcesValid` payload union. |
 | `-publishers-refresh` | `PUBLISHERS_REFRESH` | `30s`   | DNS re-resolve interval. Last-good AAAA set is retained on transient refresh failures so brief DNS outages don't empty the manifest source payload. |
 
-The shard-manifest pod's own source IPv6 is what receivers pass to
-`-ssm-bootstrap-manifest` (helm: `config.ssmBootstrap.manifest`) to
-`(S,G)`-join the manifest group under Posture C. Distinct IPv6 per
-replica is required; use Multus + deterministic IPAM (Whereabouts) for
-stable per-pod addressing.
+The shard-manifest pod's own source IPv6 is what `shard-listener` and
+`retry-endpoint` pass to `-ssm-bootstrap-manifest` (chart value
+`config.ssmBootstrap.manifest`) to `(S,G)`-join the manifest group under
+SSM. Distinct IPv6 per replica is required; use Multus + deterministic IPAM
+(Whereabouts) for stable per-pod addressing.
 
 ## Pilot mode (BRC-139 auto-shard-config)
 
@@ -131,7 +129,7 @@ A shard-manifest configured with `-pilot-only` becomes a pilot
 announcer: the manifest's groups payload describes desired fleet state
 (what consumers SHOULD join), not the announcer's own joins. Pilots
 must be `-authoritative=true`; `-pilot-only` forces it. See the
-[Automatic Shard Configuration Plan](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#automatic-shard-configuration).
+[Automatic Shard Configuration design](https://github.com/lightwebinc/bsv-multicast/blob/main/DESIGN.md#automatic-shard-configuration).
 
 Operators MUST stand up at least `-pilot-quorum` (proxy/listener
 default `2`) pilot replicas with the same `-shard-bits`,
@@ -162,8 +160,8 @@ union-joins the active + successor group sets. The pilot side floor is
 
 | Flag                            | Env                          | Default | Description                                                                                                                                  |
 | ------------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-successor-generation-id`      | `SUCCESSOR_GENERATION_ID`    | `""`    | 16-byte hex; non-empty triggers Successor-block emission. All other `-successor-*` flags below are required when set.                         |
-| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST be within ±1 of `-shard-bits` per BRC-139 — equal is allowed (a generation may turn over without a width change). |
+| `-successor-generation-id`      | `SUCCESSOR_GENERATION_ID`    | `""`    | 16-byte hex; non-empty triggers Successor-block emission and requires `-successor-transition-epoch`; `-successor-source-mode` is optional. Any `-successor-*` flag without it is a startup error.                         |
+| `-successor-shard-bits`         | `SUCCESSOR_SHARD_BITS`       | `0`     | Incoming generation `ShardBits`; MUST be within ±1 of `-shard-bits` per BRC-139; equal is allowed (a generation may turn over without a width change). |
 | `-successor-source-mode`        | `SUCCESSOR_SOURCE_MODE`      | `""`    | `asm` / `ssm`; empty inherits `-source-mode`.                                                                                                  |
 | `-successor-transition-epoch`   | `SUCCESSOR_TRANSITION_EPOCH` | `0`     | Unix seconds at which the successor becomes the sole active generation. MUST be `≥ now + 2 × AnnounceInterval`; the daemon rejects otherwise. |
 
@@ -192,20 +190,20 @@ flags so the manifest reverts to single-generation steady state.
 
 ## Metrics
 
-- `GET /metrics` — Prometheus exposition (default `:9091`).
-- `GET /healthz` — process-alive probe (always 200).
-- `GET /readyz` — 200 once a manifest has been sent in the last
+- `GET /metrics`: Prometheus exposition (default `[::]:9091`).
+- `GET /healthz`: process-alive probe (always 200).
+- `GET /readyz`: 200 once a manifest has been sent in the last
   `2 × AnnounceInterval`; 503 when starting, draining, or stale.
 
 | Name                              | Type      | Labels      | Notes                                            |
 | --------------------------------- | --------- | ----------- | ------------------------------------------------ |
-| `bsm_announcements_sent_total`    | counter   | —           | successful sends                                 |
-| `bsm_announcement_bytes_total`    | counter   | —           | total bytes successfully sent                    |
+| `bsm_announcements_sent_total`    | counter   | none        | successful sends                                 |
+| `bsm_announcement_bytes_total`    | counter   | none        | total bytes successfully sent                    |
 | `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`write`                         |
-| `bsm_shard_bits`                  | gauge     | —           | currently advertised value                       |
-| `bsm_joined_groups`               | gauge     | —           | currently advertised join count                  |
-| `bsm_publisher_count`             | gauge     | —           | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
-| `bsm_last_send_unixtime`          | gauge     | —           | last successful send                             |
+| `bsm_shard_bits`                  | gauge     | none        | currently advertised value                       |
+| `bsm_joined_groups`               | gauge     | none        | currently advertised join count                  |
+| `bsm_publisher_count`             | gauge     | none        | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
+| `bsm_last_send_unixtime`          | gauge     | none        | last successful send                             |
 | `bsm_build_info`                  | gauge     | `version`,`instance` | always 1                                |
 | `bsm_host_info`                   | gauge     | `hostname`,`kernel_version`,`cpu_logical`,`mem_bytes`,`rmem_max`,`nic`,`speed_mbps`,`version` | static host facts (always 1); join with `host.inventory` log |
 
@@ -213,17 +211,17 @@ The daemon also serves runtime collectors (`go_*`, `process_*`) on the same
 endpoint.
 
 
-## Behaviour notes
+## Behavior notes
 
-- **`shard-bits` = 0** — single-group configuration. `joined-groups` may be
+- **`shard-bits` = 0**: single-group configuration. `joined-groups` may be
   empty, `0`, or `all`; in the last two cases the manifest carries
   `Flags.GroupsValid=1` and a single-entry list (or 1-byte bitmap).
-- **`joined-groups` = `all`** — the daemon enumerates all `2^shard-bits`
+- **`joined-groups` = `all`**: the daemon enumerates all `2^shard-bits`
   indices.
-- **`joined-groups` empty** — identity-only manifest: `Flags.GroupsValid=0`,
+- **`joined-groups` empty**: identity-only manifest; `Flags.GroupsValid=0`,
   no payload. Useful for participants that don't subscribe to any data-plane
-  groups (e.g. a producer signalling its `shard-bits` agreement).
-- **Bitmap form size** — `ceil(2^shard-bits / 8)` bytes regardless of how
+  groups (e.g. a producer signaling its `shard-bits` agreement).
+- **Bitmap form size**: `ceil(2^shard-bits / 8)` bytes regardless of how
   many bits are set. With `shard-bits=12` this is exactly 512 B; with
   `shard-bits=8` it is 32 B.
 
@@ -254,6 +252,6 @@ shard-manifest \
 
 | Flag / Env | Default | Description |
 |------------|---------|-------------|
-| `-domain` (repeatable) / `DOMAINS` (comma-separated) | — | One BRC-148 plane descriptor per entry: `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32][:succbits=N:succepoch=T[:succgen=HEX32][:succssm]]`. The trailing `succ*` tokens announce a per-domain in-flight generation transition (Successor block) — the announcer must be `-authoritative` and `succbits` must be within ±1 of `bits` (enforced at encode). Sets `DomainsValid` (BRC-139 flags bit 7) and appends the Domains section after the successor block. SlotSpan defaults to the implied span (`ceil(2^bits/4096)`). Wire-level constraints (unique IDs ≤ 0x0E, slot overlap, control-plane bound, domain-0 top-level agreement) are enforced at encode time |
+| `-domain` (repeatable) / `DOMAINS` (comma-separated) | none | One BRC-148 plane descriptor per entry: `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32][:succbits=N:succepoch=T[:succgen=HEX32][:succssm]]`. The trailing `succ*` tokens announce a per-domain in-flight generation transition (Successor block): the announcer must be `-authoritative` and `succbits` must be within ±1 of `bits` (enforced at encode). Sets `DomainsValid` (BRC-139 flags bit 7) and appends the Domains section after the successor block. SlotSpan defaults to the implied span (`ceil(2^bits/4096)`). Wire-level constraints (unique IDs ≤ 0x0E, slot overlap, control-plane bound, domain-0 top-level agreement) are enforced at encode time |
 
 Per-domain successor announcements are supported (the `succ*` tokens above); the consumer evaluator adopts them per domain.
