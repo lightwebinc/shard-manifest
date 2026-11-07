@@ -1,5 +1,11 @@
 # shard-manifest
 
+[![CI](https://github.com/lightwebinc/shard-manifest/actions/workflows/ci.yml/badge.svg)](https://github.com/lightwebinc/shard-manifest/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/lightwebinc/shard-manifest/actions/workflows/codeql.yml/badge.svg)](https://github.com/lightwebinc/shard-manifest/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/lightwebinc/shard-manifest)](https://github.com/lightwebinc/shard-manifest/releases)
+[![Go Reference](https://pkg.go.dev/badge/github.com/lightwebinc/shard-manifest.svg)](https://pkg.go.dev/github.com/lightwebinc/shard-manifest)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 > Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project; see the main repository for the full architecture, design docs, and BRC specifications.
 
 `shard-manifest` is a tiny standalone daemon that periodically
@@ -45,3 +51,28 @@ for `-log-format`/`-log-level`/`-trace-sampling`, the `host.inventory` event, an
 
 `/metrics`, `/healthz`, `/readyz` on `-metrics-addr` (default `[::]:9091`). Endpoints and `bsm_` metric series: [docs/configuration.md](docs/configuration.md#metrics).
 
+## Build
+
+```bash
+make build       # ./shard-manifest
+make build-cli   # ./manifest-emit
+make test        # unit tests
+```
+
+## Requirements
+
+- Go 1.26 or later
+- IPv6 multicast egress on `-iface`
+
+## Helm chart
+
+- Repository: [`charts/shard-manifest`](https://github.com/lightwebinc/charts/tree/main/charts/shard-manifest)
+- Install: `helm install shard-manifest oci://ghcr.io/lightwebinc/charts/shard-manifest`
+
+## Releases
+
+Releases and release notes live on [GitHub Releases](https://github.com/lightwebinc/shard-manifest/releases); there is no CHANGELOG.
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
