@@ -312,7 +312,7 @@ func Load() (*Config, error) {
 		publishersRefresh   = fs.Duration("publishers-refresh", envDuration("PUBLISHERS_REFRESH", 30*time.Second), "DNS re-resolve interval for -publishers entries")
 		pilotOnly           = fs.Bool("pilot-only", envBool("PILOT_ONLY", false), "set Flags.PilotOnly; manifest describes desired fleet state, not own joins (implies -authoritative=true)")
 		successorGenID      = fs.String("successor-generation-id", os.Getenv("SUCCESSOR_GENERATION_ID"), "incoming generation 16-byte hex; empty = no Successor block")
-		successorShardBits  = fs.Uint("successor-shard-bits", envUint("SUCCESSOR_SHARD_BITS", 0), "incoming generation ShardBits (must be within ±1 of -shard-bits; equal is allowed — a generation may turn over without changing width)")
+		successorShardBits  = fs.Uint("successor-shard-bits", envUint("SUCCESSOR_SHARD_BITS", 0), "incoming generation ShardBits (must be within ±1 of -shard-bits; equal is allowed, a generation may turn over without changing width)")
 		successorSourceMode = fs.String("successor-source-mode", envOrDefault("SUCCESSOR_SOURCE_MODE", ""), "incoming generation addressing model: asm|ssm (empty = inherit -source-mode)")
 		successorEpoch      = fs.Int("successor-transition-epoch", envInt("SUCCESSOR_TRANSITION_EPOCH", 0), "Unix seconds at which the successor becomes the sole active generation")
 	)
@@ -323,7 +323,7 @@ func Load() (*Config, error) {
 		}
 	}
 	fs.Var(&domainSpecs, "domain",
-		"BRC-148 plane descriptor `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32]` (repeatable; env DOMAINS comma-separated)")
+		"BRC-148 plane descriptor `id:bits=N[:ssm][:active][:slotspan=S][:generation=HEX32][:succbits=N:succepoch=T[:succgen=HEX32][:succssm]]` (repeatable; env DOMAINS comma-separated)")
 	var ()
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
