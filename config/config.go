@@ -282,7 +282,7 @@ func Load() (*Config, error) {
 
 	var (
 		shardBits          = fs.Uint("shard-bits", envUint("SHARD_BITS", 2), "shard bits (0..12)")
-		joinedGroups       = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of hex group indices, or 'all'")
+		joinedGroups       = fs.String("joined-groups", os.Getenv("JOINED_GROUPS"), "comma list of group indices (decimal or 0x hex), or 'all'")
 		encodingFlag       = fs.String("bitmap", envOrDefault("BITMAP", "auto"), "joined-groups encoding: auto|list|bitmap")
 		roleHint           = fs.String("role-hint", envOrDefault("ROLE_HINT", "generic"), "generic|proxy|listener|retry-endpoint|producer|manifest-only")
 		genID              = fs.String("generation-id", os.Getenv("GENERATION_ID"), "16-byte hex (with or without dashes); empty = zero UUID")

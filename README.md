@@ -61,7 +61,7 @@ make test        # unit tests
 
 ## Requirements
 
-- Go 1.26 or later
+- Go 1.26.2 or later
 - IPv6 multicast egress on `-iface`
 
 ## Helm chart
