@@ -52,6 +52,37 @@ func TestBuildManifest_List(t *testing.T) {
 	}
 }
 
+// TTL and AnnounceInterval are 16-bit counts of whole seconds on the wire.
+// A Config built in code (bypassing config.Load) with a value the field
+// cannot hold must fail the build rather than emit a wrapped or truncated
+// value: 65536s would go out as 0, which consumers read as "use your
+// default".
+func TestBuildManifest_RefusesDurationsTheWireCannotCarry(t *testing.T) {
+	for _, c := range []*config.Config{
+		{ShardBits: 2, AnnounceInterval: 300 * time.Second, TTL: 65536 * time.Second},
+		{ShardBits: 2, AnnounceInterval: 300 * time.Second, TTL: 24 * time.Hour},
+		{ShardBits: 2, AnnounceInterval: 300 * time.Second, TTL: 500 * time.Millisecond},
+		{ShardBits: 2, AnnounceInterval: 65536 * time.Second},
+		{ShardBits: 2, AnnounceInterval: 1500 * time.Millisecond},
+	} {
+		m, err := newSender(c).buildManifest(false)
+		if err == nil {
+			t.Errorf("TTL=%v AnnounceInterval=%v: built TTL=%d AnnounceInterval=%d, want an error",
+				c.TTL, c.AnnounceInterval, m.TTL, m.AnnounceInterval)
+		}
+	}
+
+	// The largest value the fields hold still goes out intact.
+	c := &config.Config{ShardBits: 2, AnnounceInterval: 65535 * time.Second, TTL: 65535 * time.Second}
+	m, err := newSender(c).buildManifest(false)
+	if err != nil {
+		t.Fatalf("buildManifest at the wire maximum: %v", err)
+	}
+	if m.TTL != 65535 || m.AnnounceInterval != 65535 {
+		t.Errorf("TTL=%d AnnounceInterval=%d, want 65535 and 65535", m.TTL, m.AnnounceInterval)
+	}
+}
+
 func TestBuildManifest_Bitmap(t *testing.T) {
 	c := &config.Config{
 		ShardBits: 8,

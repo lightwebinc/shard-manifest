@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -47,6 +48,31 @@ const (
 	// EncodingBitmap forces bitmap form.
 	EncodingBitmap
 )
+
+// MaxWireDuration is the longest TTL or AnnounceInterval a BRC-139 manifest
+// can carry: the header holds each as a 16-bit count of whole seconds, so
+// 65535s (18h12m15s).
+const MaxWireDuration = math.MaxUint16 * time.Second
+
+// WireSeconds converts d to the 16-bit whole-second form the BRC-139
+// manifest header carries for TTL and AnnounceInterval. A value the field
+// cannot hold exactly is an error naming the field, never a silent change:
+// a negative value; one above MaxWireDuration, which would wrap (65536s
+// goes out as 0); or one with a fractional second, which would truncate
+// (1.5s goes out as 1, and 500ms as 0, which consumers read as "use your
+// default" for a TTL).
+func WireSeconds(field string, d time.Duration) (uint16, error) {
+	switch {
+	case d < 0:
+		return 0, fmt.Errorf("%s %v is negative", field, d)
+	case d > MaxWireDuration:
+		return 0, fmt.Errorf("%s %v exceeds the wire maximum of 65535s (%v): the manifest carries it as a 16-bit count of seconds",
+			field, d, MaxWireDuration)
+	case d%time.Second != 0:
+		return 0, fmt.Errorf("%s %v is not a whole number of seconds: the manifest carries it in whole seconds", field, d)
+	}
+	return uint16(d / time.Second), nil
+}
 
 // thresholdListEntries is the joined-group count above which the auto encoder
 // switches from list to bitmap form. Each list entry is 2 bytes; a bitmap
@@ -298,8 +324,8 @@ func Load() (*Config, error) {
 				"'derived' = BRC-126/129 conformant, FF3x under -source-mode=ssm. "+
 				"Move senders off 'asm-only' only after every consumer runs 'both' or 'derived'")
 		mcGroupID           = fs.String("mc-group-id", envOrDefault("MC_GROUP_ID", "0x000B"), "IANA multicast group-id (16 bits)")
-		announceInterval    = fs.Duration("announce-interval", envDuration("ANNOUNCE_INTERVAL", 300*time.Second), "send period")
-		ttl                 = fs.Duration("ttl", envDuration("TTL", 0), "TTL on the wire (0 = consumer default)")
+		announceInterval    = fs.Duration("announce-interval", envDuration("ANNOUNCE_INTERVAL", 300*time.Second), "send period, whole seconds from 1s to 65535s (18h12m15s); also sent on the wire, where consumers derive their default TTL (3x) and adoption hysteresis (2x) from it")
+		ttl                 = fs.Duration("ttl", envDuration("TTL", 0), "manifest TTL on the wire, whole seconds from 0s to 65535s (18h12m15s); 0 = consumer default (3x announce interval); a longer or fractional value is a startup error")
 		metricsAddr         = fs.String("metrics-addr", envOrDefault("METRICS_ADDR", "[::]:9091"), "metrics/health HTTP listener address")
 		otlpEndpoint        = fs.String("otlp-endpoint", os.Getenv("OTLP_ENDPOINT"), "OTLP gRPC endpoint (empty = disabled)")
 		otlpInterval        = fs.Duration("otlp-interval", envDuration("OTLP_INTERVAL", 15*time.Second), "OTLP push interval")
@@ -396,9 +422,12 @@ func Load() (*Config, error) {
 	if *announceInterval <= 0 {
 		return nil, fmt.Errorf("announce-interval must be > 0")
 	}
+	if _, err := WireSeconds("announce-interval", *announceInterval); err != nil {
+		return nil, err
+	}
 	c.AnnounceInterval = *announceInterval
-	if *ttl < 0 {
-		return nil, fmt.Errorf("ttl must be ≥ 0")
+	if _, err := WireSeconds("ttl", *ttl); err != nil {
+		return nil, err
 	}
 	c.TTL = *ttl
 

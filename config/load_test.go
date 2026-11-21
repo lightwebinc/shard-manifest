@@ -3,6 +3,7 @@ package config
 import (
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,6 +101,65 @@ func TestLoad_InvalidScalars(t *testing.T) {
 		if _, err := loadWithArgs(t, args...); err == nil {
 			t.Errorf("%s: expected error", name)
 		}
+	}
+}
+
+// The manifest header carries TTL and AnnounceInterval as 16-bit counts of
+// whole seconds. Load must refuse a value those fields cannot hold, naming
+// the field and the limit, rather than load it and let the sender wrap it
+// (65536s would go out as 0, which consumers read as "use your default") or
+// truncate it (500ms would go out as 0 too).
+func TestLoad_WireDurationRange(t *testing.T) {
+	accepted := []struct {
+		args          []string
+		ttl, interval time.Duration
+	}{
+		{[]string{"-ttl=0"}, 0, 300 * time.Second},
+		{[]string{"-ttl=900s"}, 900 * time.Second, 300 * time.Second},
+		{[]string{"-ttl=65535s"}, 65535 * time.Second, 300 * time.Second},
+		{[]string{"-ttl=18h12m15s"}, 65535 * time.Second, 300 * time.Second},
+		{[]string{"-announce-interval=1s"}, 0, time.Second},
+		{[]string{"-announce-interval=65535s"}, 0, 65535 * time.Second},
+	}
+	for _, tc := range accepted {
+		c, err := loadWithArgs(t, tc.args...)
+		if err != nil {
+			t.Errorf("%v: %v", tc.args, err)
+			continue
+		}
+		if c.TTL != tc.ttl || c.AnnounceInterval != tc.interval {
+			t.Errorf("%v: ttl=%v announce-interval=%v, want %v and %v",
+				tc.args, c.TTL, c.AnnounceInterval, tc.ttl, tc.interval)
+		}
+	}
+
+	refused := []struct {
+		arg, field, errPart string
+	}{
+		{"-ttl=65536s", "ttl", "65535s"},
+		{"-ttl=24h", "ttl", "65535s"},
+		{"-ttl=500ms", "ttl", "whole number of seconds"},
+		{"-ttl=1.5s", "ttl", "whole number of seconds"},
+		{"-ttl=-1s", "ttl", "negative"},
+		{"-announce-interval=65536s", "announce-interval", "65535s"},
+		{"-announce-interval=500ms", "announce-interval", "whole number of seconds"},
+		{"-announce-interval=90.5s", "announce-interval", "whole number of seconds"},
+	}
+	for _, tc := range refused {
+		_, err := loadWithArgs(t, tc.arg)
+		if err == nil {
+			t.Errorf("%s: loaded, want an error", tc.arg)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.field) || !strings.Contains(err.Error(), tc.errPart) {
+			t.Errorf("%s: error %q, want it to name %q and contain %q", tc.arg, err, tc.field, tc.errPart)
+		}
+	}
+
+	// The environment fallback goes through the same check.
+	t.Setenv("TTL", "65536s")
+	if _, err := loadWithArgs(t); err == nil {
+		t.Error("TTL=65536s from the environment loaded, want an error")
 	}
 }
 
