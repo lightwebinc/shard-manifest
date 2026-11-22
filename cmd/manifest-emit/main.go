@@ -1,5 +1,6 @@
-// Command manifest-emit sends a single BRC-139 ShardManifest datagram and
-// exits. Useful for smoke-testing connectivity, multicast routing, and
+// Command manifest-emit sends one BRC-139 ShardManifest, then a Shutdown
+// manifest, to each destination and exits; it exits 1 if none was sent.
+// Useful for smoke-testing connectivity, multicast routing, and
 // listener-side dispatch without running the full daemon.
 package main
 
@@ -28,7 +29,7 @@ func main() {
 	}
 
 	// Same logging contract as the daemon: identity attributes on every line
-	// and the operator's -log-format/-log-level honoured. A one-shot emitter
+	// and the operator's -log-format/-log-level honored. A one-shot emitter
 	// that logs in its own format is unjoinable with the daemon's lines for
 	// the same fabric.
 	logLevel := logging.ParseLevel(cfg.LogLevel)
@@ -68,5 +69,11 @@ func main() {
 		slog.Error("run", "err", err)
 		os.Exit(1)
 	}
-	slog.Info("manifest emitted")
+	// A failed write is only logged by the sender, so check that something
+	// actually went out before reporting success.
+	if snd.Sent() == 0 {
+		slog.Error("no manifest was sent; see the send errors above")
+		os.Exit(1)
+	}
+	slog.Info("manifest emitted", "datagrams", snd.Sent())
 }

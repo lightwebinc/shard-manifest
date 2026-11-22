@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,6 +41,8 @@ type Sender struct {
 
 	mu      sync.RWMutex
 	sources [][16]byte // cached, sorted, deduped; refreshed by publishers.OnChange
+
+	sent atomic.Uint64 // manifest datagrams written successfully
 }
 
 // New builds a Sender. ResolveIface and PrimaryIPv6 are called eagerly.
@@ -145,23 +148,24 @@ func (s *Sender) Run(ctx context.Context) error {
 			return fmt.Errorf("publishers resolver: %w", err)
 		}
 	}
-	conns, err := s.openSockets()
+	socks, err := s.openSockets()
 	if err != nil {
 		return err
 	}
 	defer func() {
-		for _, c := range conns {
-			_ = c.Close()
+		for _, sk := range socks {
+			_ = sk.conn.Close()
 		}
 	}()
 
 	// The destination list is logged in full, not just counted: on the
 	// BRC-126/129 flag day "which group am I announcing to" is the question
 	// an operator has to answer from the logs, because landing on the wrong
-	// one produces no error at either end.
-	dests := make([]string, 0, len(s.dests))
-	for _, d := range s.dests {
-		dests = append(dests, d.String())
+	// one produces no error at either end. It lists the destinations that
+	// were opened; one that failed to dial was logged above.
+	dests := make([]string, 0, len(socks))
+	for _, sk := range socks {
+		dests = append(dests, sk.dest.String())
 	}
 	s.log.Info("sender started",
 		"interval", s.cfg.AnnounceInterval,
@@ -175,7 +179,7 @@ func (s *Sender) Run(ctx context.Context) error {
 	)
 
 	// Send immediately.
-	s.sendOnce(conns, false)
+	s.sendOnce(socks, false)
 
 	// Use a timer (instead of a fixed ticker) so we can introduce jitter.
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -185,17 +189,21 @@ func (s *Sender) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			t.Stop()
-			s.sendOnce(conns, true) // shutdown manifest
+			s.sendOnce(socks, true) // shutdown manifest
 			return nil
 		case <-t.C:
-			s.sendOnce(conns, false)
+			s.sendOnce(socks, false)
 		}
 	}
 }
 
-// sendOnce builds one manifest and writes it to every destination conn.
+// Sent returns how many manifest datagrams were written successfully, over
+// every destination.
+func (s *Sender) Sent() uint64 { return s.sent.Load() }
+
+// sendOnce builds one manifest and writes it to every destination socket.
 // shutdown sets Flags.Shutdown.
-func (s *Sender) sendOnce(conns []*net.UDPConn, shutdown bool) {
+func (s *Sender) sendOnce(socks []socket, shutdown bool) {
 	m, err := s.buildManifest(shutdown)
 	if err != nil {
 		s.log.Error("build manifest", "err", err)
@@ -214,12 +222,15 @@ func (s *Sender) sendOnce(conns []*net.UDPConn, shutdown bool) {
 		s.log.Info("emitting shutdown manifest")
 	}
 
-	for i, conn := range conns {
-		if _, werr := conn.WriteTo(buf[:n], s.dests[i]); werr != nil {
-			s.log.Warn("send error", "dest", s.dests[i].String(), "err", werr)
+	for _, sk := range socks {
+		// The socket is connected to sk.dest, so Write: Go refuses WriteTo
+		// on a connected socket (net.ErrWriteToConnected).
+		if _, werr := sk.conn.Write(buf[:n]); werr != nil {
+			s.log.Warn("send error", "dest", sk.dest.String(), "err", werr)
 			s.rec.SendError("write")
 			continue
 		}
+		s.sent.Add(1)
 		s.rec.SendOK(n)
 	}
 
@@ -339,14 +350,24 @@ func (s *Sender) buildManifest(shutdown bool) (*frame.ShardManifest, error) {
 	return m, nil
 }
 
-// openSockets dials one UDP socket per destination, forcing the multicast
-// egress interface via IPV6_MULTICAST_IF.
-func (s *Sender) openSockets() ([]*net.UDPConn, error) {
-	conns := make([]*net.UDPConn, 0, len(s.dests))
+// socket is one destination and the UDP socket connected to it. Keeping the
+// two together means a destination skipped at dial time cannot shift which
+// address a later socket's errors are reported against.
+type socket struct {
+	dest *net.UDPAddr
+	conn *net.UDPConn
+}
+
+// openSockets connects one UDP socket per destination, forcing the multicast
+// egress interface via IPV6_MULTICAST_IF. A destination that cannot be
+// dialed is logged, counted as a "dial" send error, and skipped.
+func (s *Sender) openSockets() ([]socket, error) {
+	socks := make([]socket, 0, len(s.dests))
 	for _, dest := range s.dests {
 		conn, err := net.DialUDP("udp6", nil, dest)
 		if err != nil {
 			s.log.Warn("dial", "dest", dest.String(), "err", err)
+			s.rec.SendError("dial")
 			continue
 		}
 		if rc, err := conn.SyscallConn(); err == nil {
@@ -355,12 +376,12 @@ func (s *Sender) openSockets() ([]*net.UDPConn, error) {
 					syscall.IPV6_MULTICAST_IF, s.iface.Index)
 			})
 		}
-		conns = append(conns, conn)
+		socks = append(socks, socket{dest: dest, conn: conn})
 	}
-	if len(conns) == 0 {
+	if len(socks) == 0 {
 		return nil, errors.New("no destinations could be dialed")
 	}
-	return conns, nil
+	return socks, nil
 }
 
 // resolveGroups returns the joined group set and whether a claim is being
