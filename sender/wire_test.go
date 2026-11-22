@@ -3,6 +3,7 @@ package sender
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"strings"
@@ -201,5 +202,43 @@ func TestRun_FailedDialDoesNotShiftDestinations(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "msg=dial") || !strings.Contains(logs.String(), undialable.String()) {
 		t.Errorf("the failed dial of %s was not logged:\n%s", undialable, logs)
+	}
+}
+
+// A destination whose dial fails at startup is retried on later ticks, each
+// failure counted, and receives manifests once the dial succeeds. Destinations
+// reports it with zero datagrams until then.
+func TestRun_RetriesFailedDial(t *testing.T) {
+	rx := receiver(t)
+	live := receiver(t)
+	late := rx.LocalAddr().(*net.UDPAddr)
+
+	s, logs := wireSender(t, live.LocalAddr().(*net.UDPAddr), late)
+	s.cfg.AnnounceInterval = time.Second
+	var mu sync.Mutex
+	fails := 0
+	realDial := s.dial
+	s.dial = func(d *net.UDPAddr) (*net.UDPConn, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if d.String() == late.String() && fails < 1 {
+			fails++
+			return nil, errors.New("injected dial failure")
+		}
+		return realDial(d)
+	}
+	stop := runSender(t, s)
+	defer stop()
+	receive(t, live, "first manifest on the live destination")
+	if st := s.Destinations(); st[1].Sent != 0 {
+		t.Errorf("late destination Sent = %d before its dial succeeded, want 0", st[1].Sent)
+	}
+	// The retry happens on the next tick (about 1s, +-10%).
+	m := receive(t, rx, "manifest on the retried destination")
+	if m.Flags&frame.ShardManifestFlagShutdown != 0 {
+		t.Error("retried destination only got the Shutdown manifest")
+	}
+	if !strings.Contains(logs.String(), "injected dial failure") {
+		t.Errorf("failed dial not logged:\n%s", logs)
 	}
 }

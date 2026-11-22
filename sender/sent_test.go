@@ -40,3 +40,20 @@ func TestSent_CountsWrittenManifests(t *testing.T) {
 		t.Errorf("Sent() = %d to a refused port, want 1 (the shutdown write must fail)", got)
 	}
 }
+
+// Destinations lists every configured destination with its own count, so a
+// destination that was never dialed shows 0 even when another one sent.
+func TestDestinations_PerDestinationCounts(t *testing.T) {
+	rx := receiver(t)
+	live := rx.LocalAddr().(*net.UDPAddr)
+	undialable := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9}
+	s, _ := wireSender(t, undialable, live)
+	stop := runSender(t, s)
+	receive(t, rx, "first manifest")
+	stop()
+	got := s.Destinations()
+	if len(got) != 2 || got[0].Dest != undialable.String() || got[0].Sent != 0 ||
+		got[1].Dest != live.String() || got[1].Sent == 0 {
+		t.Errorf("Destinations() = %+v, want [%s 0] then [%s >0]", got, undialable, live)
+	}
+}

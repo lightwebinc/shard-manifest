@@ -79,8 +79,9 @@ on) and an optional OTLP gRPC exporter. The HTTP server exposes:
 
 ### `cmd/manifest-emit`
 One-shot CLI that reuses `config` + `sender` to emit one manifest, then a
-Shutdown manifest, to each destination and exit. It exits 1 when no
-manifest could be sent, since the sender only logs a failed write. Useful
+Shutdown manifest, to each destination and exit. It exits 1, naming
+the destination, when any destination was not dialed or had every write
+fail, since the sender only logs those. Useful
 for ops/debugging multicast routing without running the long-running
 daemon.
 
@@ -129,12 +130,18 @@ authoritative-key on the IPv6 packet header source.
 - **No global IPv6 address on the egress interface**: startup fails. Set
   `-iface` explicitly or fix node networking.
 - **Destination dial error** (startup): logged with the destination and
-  counted as `bsm_send_errors_total{kind="dial"}`; that destination gets no
-  manifests and the others still do. If no destination can be dialed,
-  startup fails.
+  counted as `bsm_send_errors_total{kind="dial"}`; the others still send.
+  The dial is retried on every later tick (counted each time), and the
+  destination joins the send set once it succeeds. If no destination can be
+  dialed at startup, startup fails. `/readyz` reflects only that some
+  destination was written to recently, so watch the `dial` error counter for
+  a partly dialed set.
 - **Multicast send error**: logged with the destination and counted as
   `bsm_send_errors_total{kind="write"}`; the loop continues and retries on
-  the next tick. `/readyz` stays 503 until a write succeeds.
+  the next tick. `/readyz` stays 503 until a write succeeds. On a connected
+  UDP socket an ICMP error (for example port unreachable) is reported on the
+  next write rather than the one that drew it, so a failed write can follow
+  a successful one.
 - **Encode error**: extremely unlikely (config is validated upfront);
   incremented as `bsm_send_errors_total{kind="encode"}`.
 

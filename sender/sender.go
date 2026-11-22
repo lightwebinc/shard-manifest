@@ -43,6 +43,33 @@ type Sender struct {
 	sources [][16]byte // cached, sorted, deduped; refreshed by publishers.OnChange
 
 	sent atomic.Uint64 // manifest datagrams written successfully
+
+	// dial opens the UDP socket for one destination; a field so tests can
+	// make a dial fail and then succeed.
+	dial func(*net.UDPAddr) (*net.UDPConn, error)
+
+	perMu   sync.Mutex
+	perDest map[string]uint64 // datagrams written, by destination
+}
+
+// DestStatus is one configured destination and how many manifest datagrams
+// were written to it. Sent is 0 for a destination never dialed or whose
+// every write failed.
+type DestStatus struct {
+	Dest string
+	Sent uint64
+}
+
+// Destinations reports every configured destination, in configured order,
+// with its written-datagram count.
+func (s *Sender) Destinations() []DestStatus {
+	s.perMu.Lock()
+	defer s.perMu.Unlock()
+	out := make([]DestStatus, 0, len(s.dests))
+	for _, d := range s.dests {
+		out = append(out, DestStatus{Dest: d.String(), Sent: s.perDest[d.String()]})
+	}
+	return out
 }
 
 // New builds a Sender. ResolveIface and PrimaryIPv6 are called eagerly.
@@ -67,6 +94,10 @@ func New(cfg *config.Config, rec *metrics.Recorder, instanceID uint32) (*Sender,
 		srcIPv6:    src,
 		instanceID: instanceID,
 		dests:      dests,
+		dial: func(d *net.UDPAddr) (*net.UDPConn, error) {
+			return net.DialUDP("udp6", nil, d)
+		},
+		perDest: make(map[string]uint64),
 	}
 	if len(cfg.Publishers) > 0 {
 		s.publishers = &bootstrap.Resolver{
@@ -148,7 +179,7 @@ func (s *Sender) Run(ctx context.Context) error {
 			return fmt.Errorf("publishers resolver: %w", err)
 		}
 	}
-	socks, err := s.openSockets()
+	socks, pending, err := s.openSockets()
 	if err != nil {
 		return err
 	}
@@ -162,7 +193,8 @@ func (s *Sender) Run(ctx context.Context) error {
 	// BRC-126/129 flag day "which group am I announcing to" is the question
 	// an operator has to answer from the logs, because landing on the wrong
 	// one produces no error at either end. It lists the destinations that
-	// were opened; one that failed to dial was logged above.
+	// were opened; one that failed to dial was logged above and is retried
+	// on each tick.
 	dests := make([]string, 0, len(socks))
 	for _, sk := range socks {
 		dests = append(dests, sk.dest.String())
@@ -192,6 +224,9 @@ func (s *Sender) Run(ctx context.Context) error {
 			s.sendOnce(socks, true) // shutdown manifest
 			return nil
 		case <-t.C:
+			if len(pending) > 0 {
+				socks, pending = s.dialAll(pending, socks)
+			}
 			s.sendOnce(socks, false)
 		}
 	}
@@ -231,6 +266,9 @@ func (s *Sender) sendOnce(socks []socket, shutdown bool) {
 			continue
 		}
 		s.sent.Add(1)
+		s.perMu.Lock()
+		s.perDest[sk.dest.String()]++
+		s.perMu.Unlock()
 		s.rec.SendOK(n)
 	}
 
@@ -358,16 +396,28 @@ type socket struct {
 	conn *net.UDPConn
 }
 
-// openSockets connects one UDP socket per destination, forcing the multicast
-// egress interface via IPV6_MULTICAST_IF. A destination that cannot be
-// dialed is logged, counted as a "dial" send error, and skipped.
-func (s *Sender) openSockets() ([]socket, error) {
-	socks := make([]socket, 0, len(s.dests))
-	for _, dest := range s.dests {
-		conn, err := net.DialUDP("udp6", nil, dest)
+// openSockets connects one UDP socket per destination. A destination that
+// cannot be dialed is logged, counted as a "dial" send error, and returned
+// in pending so later ticks retry it. It fails only when none could be dialed.
+func (s *Sender) openSockets() (socks []socket, pending []*net.UDPAddr, err error) {
+	socks, pending = s.dialAll(s.dests, make([]socket, 0, len(s.dests)))
+	if len(socks) == 0 {
+		return nil, nil, errors.New("no destinations could be dialed")
+	}
+	return socks, pending, nil
+}
+
+// dialAll dials each destination, forcing the multicast egress interface via
+// IPV6_MULTICAST_IF. Dialed sockets are appended to socks; failures are
+// logged, counted, and returned.
+func (s *Sender) dialAll(dests []*net.UDPAddr, socks []socket) ([]socket, []*net.UDPAddr) {
+	var failed []*net.UDPAddr
+	for _, dest := range dests {
+		conn, err := s.dial(dest)
 		if err != nil {
 			s.log.Warn("dial", "dest", dest.String(), "err", err)
 			s.rec.SendError("dial")
+			failed = append(failed, dest)
 			continue
 		}
 		if rc, err := conn.SyscallConn(); err == nil {
@@ -378,10 +428,7 @@ func (s *Sender) openSockets() ([]socket, error) {
 		}
 		socks = append(socks, socket{dest: dest, conn: conn})
 	}
-	if len(socks) == 0 {
-		return nil, errors.New("no destinations could be dialed")
-	}
-	return socks, nil
+	return socks, failed
 }
 
 // resolveGroups returns the joined group set and whether a claim is being
