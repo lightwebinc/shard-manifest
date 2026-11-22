@@ -44,8 +44,9 @@ on demand.
 
 ### `sender`: encode + emit loop
 Builds an in-memory `frame.ShardManifest`, calls `frame.EncodeShardManifest`,
-and writes the resulting datagram to one UDP socket per destination (each
-socket dialed to the corresponding beacon address). Sockets force the
+and writes the resulting datagram to one UDP socket per destination. Each
+socket is connected to its beacon address and keeps it, so a destination
+that fails to dial is skipped without shifting the others. Sockets force the
 egress interface via `IPV6_MULTICAST_IF`. The send loop ticks at
 `AnnounceInterval` ± 10 % jitter; on `ctx.Done()` it emits one final
 manifest with `Flags.Shutdown=1`.
@@ -77,9 +78,12 @@ on) and an optional OTLP gRPC exporter. The HTTP server exposes:
   `2 × AnnounceInterval`; 503 otherwise (starting, draining, or stale).
 
 ### `cmd/manifest-emit`
-One-shot CLI that reuses `config` + `sender` to emit a single manifest and
-exit. Useful for ops/debugging multicast routing without running the
-long-running daemon.
+One-shot CLI that reuses `config` + `sender` to emit one manifest, then a
+Shutdown manifest, to each destination and exit. It exits 1, naming
+the destination, when any destination was not dialed or had every write
+fail, since the sender only logs those. Useful
+for ops/debugging multicast routing without running the long-running
+daemon.
 
 ## On-the-wire format
 
@@ -125,8 +129,19 @@ authoritative-key on the IPv6 packet header source.
 
 - **No global IPv6 address on the egress interface**: startup fails. Set
   `-iface` explicitly or fix node networking.
-- **Multicast send error**: incremented as `bsm_send_errors_total{kind="write"}`;
-  the loop continues and retries on the next tick.
+- **Destination dial error** (startup): logged with the destination and
+  counted as `bsm_send_errors_total{kind="dial"}`; the others still send.
+  The dial is retried on every later tick (counted each time), and the
+  destination joins the send set once it succeeds. If no destination can be
+  dialed at startup, startup fails. `/readyz` reflects only that some
+  destination was written to recently, so watch the `dial` error counter for
+  a partly dialed set.
+- **Multicast send error**: logged with the destination and counted as
+  `bsm_send_errors_total{kind="write"}`; the loop continues and retries on
+  the next tick. `/readyz` stays 503 until a write succeeds. On a connected
+  UDP socket an ICMP error (for example port unreachable) is reported on the
+  next write rather than the one that drew it, so a failed write can follow
+  a successful one.
 - **Encode error**: extremely unlikely (config is validated upfront);
   incremented as `bsm_send_errors_total{kind="encode"}`.
 

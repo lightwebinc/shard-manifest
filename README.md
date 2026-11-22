@@ -33,7 +33,8 @@ make build
   -iface=eth0
 ```
 
-Smoke-test with the one-shot CLI:
+Smoke-test with the one-shot CLI. It sends one manifest, then a Shutdown
+manifest, to each destination, and exits 1 if none of them could be sent:
 
 ```bash
 make build-cli

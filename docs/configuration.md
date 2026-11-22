@@ -207,7 +207,7 @@ error names the flag and the limit.
 | --------------------------------- | --------- | ----------- | ------------------------------------------------ |
 | `bsm_announcements_sent_total`    | counter   | none        | successful sends                                 |
 | `bsm_announcement_bytes_total`    | counter   | none        | total bytes successfully sent                    |
-| `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`write`                         |
+| `bsm_send_errors_total`           | counter   | `kind`      | `build`/`encode`/`dial`/`write`                  |
 | `bsm_shard_bits`                  | gauge     | none        | currently advertised value                       |
 | `bsm_joined_groups`               | gauge     | none        | currently advertised join count                  |
 | `bsm_publisher_count`             | gauge     | none        | resolved publisher IPv6 count in `Flags.SourcesValid` (SSM/`-publishers`) |
