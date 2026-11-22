@@ -173,8 +173,16 @@ flags so the manifest reverts to single-generation steady state.
 
 | Flag                  | Env                  | Default   | Description                                                       |
 | --------------------- | -------------------- | --------- | ----------------------------------------------------------------- |
-| `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`    | Time between sends. Each send is jittered by ±10 %.               |
-| `-ttl`                | `TTL`                | `0s`      | Go duration (e.g. `-ttl=900s`); encoded on the wire as whole seconds. `0` = consumer applies its default (3× interval). |
+| `-announce-interval`  | `ANNOUNCE_INTERVAL`  | `300s`    | Time between sends, `1s` to `65535s` (`18h12m15s`) in whole seconds. Each send is jittered by ±10 %. The value also goes on the wire: consumers derive their default TTL (3×) and adoption hysteresis (2×) from it. |
+| `-ttl`                | `TTL`                | `0s`      | Go duration (e.g. `-ttl=900s`), `0s` to `65535s` (`18h12m15s`) in whole seconds. `0` = consumer applies its default (3× interval). |
+
+The manifest header carries both values as 16-bit counts of whole seconds
+(BRC-139 `TTL` and `AnnounceInterval`), so the daemon refuses to start on a
+value the field cannot hold: one above `65535s`, which would wrap (`65536s`
+would go out as `0`), or one with a fractional second, which would truncate
+(`500ms` would go out as `0`: a consumer reads a zero TTL as "use your
+default", and a zero interval zeroes the TTL and hysteresis it derives). The
+error names the flag and the limit.
 
 ## Observability
 

@@ -230,11 +230,21 @@ func (s *Sender) sendOnce(conns []*net.UDPConn, shutdown bool) {
 
 // buildManifest constructs an in-memory ShardManifest from the daemon config.
 func (s *Sender) buildManifest(shutdown bool) (*frame.ShardManifest, error) {
+	// config.Load already refuses values the 16-bit fields cannot carry; the
+	// same check here keeps a Config built in code from wrapping on the wire.
+	ttl, err := config.WireSeconds("ttl", s.cfg.TTL)
+	if err != nil {
+		return nil, err
+	}
+	interval, err := config.WireSeconds("announce-interval", s.cfg.AnnounceInterval)
+	if err != nil {
+		return nil, err
+	}
 	m := &frame.ShardManifest{
 		InstanceID:       s.instanceID,
 		Epoch:            uint32(time.Now().Unix()), //nolint:gosec // wraps in 2106
-		TTL:              uint16(s.cfg.TTL.Seconds()),
-		AnnounceInterval: uint16(s.cfg.AnnounceInterval.Seconds()),
+		TTL:              ttl,
+		AnnounceInterval: interval,
 		ShardBits:        s.cfg.ShardBits,
 		RoleHint:         s.cfg.RoleHint,
 		GenerationID:     s.cfg.GenerationID,
